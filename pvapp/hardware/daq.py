@@ -27,6 +27,9 @@ uInt32 = ctypes.c_ulong
 uInt64 = ctypes.c_ulonglong
 float64 = ctypes.c_double
 
+config = SafeConfigParser()
+config.read('hardware.cfg')
+
 # alias for reasons (???)
 TaskHandle = uInt32
 
@@ -39,8 +42,6 @@ DAQmx_InputSampleRate = float64(MAX_INPUT_SAMPLE_RATE)
 DAQmx_Val_Cfg_Default = int32(-1)
 DAQmax_Channels_Number = len(CHANNELS)
 
-config = SafeConfigParser()
-config.read('hardware.cfg')
 
 
 class WaveformThread(threading.Thread):
@@ -72,9 +73,12 @@ class WaveformThread(threading.Thread):
                  input_sample_rate,
                  device='testdevice'):
 
-        self.deviceinf = config._sections[device]
-        # print("Channel: ", Channel)
 
+        # print device
+        # print config._sections
+        self.deviceinf = config._sections[device]
+
+        print("Channel: ", Channel)
         # check the inputs
         assert isinstance(waveform, np.ndarray)
         assert isinstance(Time, np.float64)
@@ -145,6 +149,7 @@ class WaveformThread(threading.Thread):
         print('DAQmxCreateAOVoltageChan')
         # Creates channel(s) to generate voltage and adds the channel(s) to
         # the task you specify with taskHandle.
+        print self.deviceinf['name'] + '/' + self.Channel
         self.CHK(nidaq.DAQmxCreateAOVoltageChan(
             self.taskHandle_Write,
             self.deviceinf['name'] + '/' + self.Channel,

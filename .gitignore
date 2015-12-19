@@ -6,3 +6,5 @@ doc/build
 .idea
 *.sublime-project
 *.sublime-workspace
+*.tsv
+*.json
