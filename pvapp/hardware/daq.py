@@ -1,6 +1,8 @@
 import ctypes
 import threading
 import numpy as np
+from ConfigParser import SafeConfigParser
+import json
 
 from util.Constants import (
     MAX_OUTPUT_SAMPLE_RATE,
@@ -37,8 +39,12 @@ DAQmx_InputSampleRate = float64(MAX_INPUT_SAMPLE_RATE)
 DAQmx_Val_Cfg_Default = int32(-1)
 DAQmax_Channels_Number = len(CHANNELS)
 
+config = SafeConfigParser()
+config.read('hardware.cfg')
+
 
 class WaveformThread(threading.Thread):
+
     """
     This class performs the necessary initialization of the DAQ hardware and
     spawns a thread to handle playback of the signal.
@@ -63,17 +69,23 @@ class WaveformThread(threading.Thread):
                  input_voltage_range,
                  output_voltage_range,
                  output_sample_rate,
-                 input_sample_rate):
+                 input_sample_rate,
+                 device='testdevice'):
 
-        print("Channel: ", Channel)
+        self.deviceinf = config._sections[device]
+        # print("Channel: ", Channel)
+
+        # check the inputs
         assert isinstance(waveform, np.ndarray)
-        assert Channel in ['ao1', 'ao0']
-        assert input_voltage_range in [10, 5, 2, 1]
         assert isinstance(Time, np.float64)
-        assert output_sample_rate <= MAX_OUTPUT_SAMPLE_RATE
-        assert input_sample_rate <= MAX_INPUT_SAMPLE_RATE
-
-        self.DEVICE_ID = "Dev3/"
+        #check the hardware values
+        assert Channel in json.loads(self.deviceinf['output_channels'])
+        assert input_voltage_range in json.loads(
+            self.deviceinf['input_voltage_ranges'])
+        assert output_sample_rate <= json.loads(
+            self.deviceinf['max_output_samplerate'])
+        assert input_sample_rate <= json.loads(
+            self.deviceinf['max_input_samplerate'])
 
         self.running = True
 
@@ -135,7 +147,7 @@ class WaveformThread(threading.Thread):
         # the task you specify with taskHandle.
         self.CHK(nidaq.DAQmxCreateAOVoltageChan(
             self.taskHandle_Write,
-            self.DEVICE_ID + self.Channel,
+            self.deviceinf['name'] + '/' + self.Channel,
             "",
             float64(-self.OutputVoltageRange),
             float64(self.OutputVoltageRange),
@@ -155,7 +167,7 @@ class WaveformThread(threading.Thread):
         # sample clock, and the number of samples to acquire or generate
         self.CHK(nidaq.DAQmxCfgSampClkTiming(
             self.taskHandle_Write,
-            "/" + self.DEVICE_ID + "ai/SampleClock",
+            "/" + self.deviceinf['name'] + '/' + "ai/SampleClock",
             self.sampleRate,   # samples per channel
             self.DAQmx_Val_Rising,   # active edge
             self.DAQmx_Val_FiniteSamps,
@@ -189,7 +201,7 @@ class WaveformThread(threading.Thread):
         # creates an analog input voltage channel
         self.CHK(nidaq.DAQmxCreateAIVoltageChan(
             self.taskHandle_Read,
-            self.DEVICE_ID + "ai0:2",
+            self.deviceinf['name'] + '/' + "ai0:2",
             "",
             self.DAQmx_Val_Diff,  # this is the rise type
             float64(-self.InputVoltageRange),
