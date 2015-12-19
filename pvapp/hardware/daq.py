@@ -132,22 +132,28 @@ class WaveformThread(threading.Thread):
     # this places the points one at a time from each channel, I think
     DAQmx_Val_GroupByScanNumber = 0
 
-    def __init__(self, waveform, Channel, Time, input_voltage_range=10):
+    def __init__(self, waveform, Channel, Time, input_voltage_range=10, configuration='default'):
 
+        
         self.running = True
         self.sampleRate = DAQmx_OutPutSampleRate
         self.periodLength = Time * DAQmx_OutPutSampleRate
         self.Time = Time
         self.Channel = Channel
 
+        # obtain device info from the config file as dictionary
+        self.device_config = config._sections[configuration]
+
         # this controls the input voltage range. (+-10,+-5, +-2,+-1)
-        assert input_voltage_range in [10, 5, 2, 1]
+        assert input_voltage_range in self.device_config['InputVoltageRange']
         self.InputVoltageRange = input_voltage_range
 
         self.taskHandle_Write = TaskHandle(0)
         self.taskHandle_Read = TaskHandle(1)
 
         self.Write_data = np.zeros((self.periodLength,), dtype=np.float64)
+
+
 
         for i in range(self.periodLength):
 
@@ -169,7 +175,7 @@ class WaveformThread(threading.Thread):
 
         self.CHK(nidaq.DAQmxCreateAOVoltageChan(
             self.taskHandle_Write,
-            "Dev3/" + self.Channel,
+            self.device_config['device_name'] + self.Channel,
             "",
             float64(-self.OutputVoltageRange),
             float64(self.OutputVoltageRange),
@@ -179,7 +185,7 @@ class WaveformThread(threading.Thread):
 
         self.CHK(nidaq.DAQmxCfgSampClkTiming(
             self.taskHandle_Write,
-            "/Dev3/ai/SampleClock",
+            self.device_config['device_name']+"/ai/SampleClock",
             self.sampleRate,   # samples per channel
             self.DAQmx_Val_Rising,   # active edge
             self.DAQmx_Val_FiniteSamps,
@@ -205,7 +211,7 @@ class WaveformThread(threading.Thread):
 
         self.CHK(nidaq.DAQmxCreateAIVoltageChan(
             self.taskHandle_Read,
-            "Dev3/ai0:2",
+            self.device_config['device_name']+"ai0:2",
             "",
             self.DAQmx_Val_Diff,  # this is the rise type
             float64(-self.InputVoltageRange),
@@ -219,7 +225,7 @@ class WaveformThread(threading.Thread):
             "",
             # "/Dev3/ao/SampleClock",
             # "ao/SampleClock",
-            # "Dev3/"+self.Channel+"/SampleClock"- doesn't work,
+            # self.device_config['device_name']+self.Channel+"/SampleClock"- doesn't work,
             DAQmx_InputSampleRate,
             self.DAQmx_Val_Rising,
             self.DAQmx_Val_FiniteSamps,
