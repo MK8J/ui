@@ -43,7 +43,6 @@ DAQmx_Val_Cfg_Default = int32(-1)
 DAQmax_Channels_Number = len(CHANNELS)
 
 
-
 class WaveformThread(threading.Thread):
 
     """
