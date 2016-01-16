@@ -3,5 +3,9 @@
 *~
 .DS_Store
 doc/build
-*.sublime*
+.idea
+*.sublime-project
+*.sublime-workspace
 *.tsv
+*.json
+

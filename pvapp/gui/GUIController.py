@@ -1,101 +1,153 @@
-import json
 import os  # importing wx files
-import sys
 import wx
-
+import copy
 import numpy as np
 from util import utils
-from hardware import daq
+from util.Constants import (
+    CHANNELS,
+    CHANNEL_INDEX,
+    INPUT_VOLTAGE_RANGE_STR,
+    WAVEFORMS,
+    OUTPUTS
+)
+from hardware.MeasurementHandler import MeasurementHandler
 from Canvas import CanvasPanel
 from DataPanel import DataPanel
+from Validator import NumRangeValidator
+from models.ExperimentData import ExperimentData
+from models.ExperimentSettings import ExperimentSettings
+from models.LightPulse import LightPulse
+
 from FrameSkeleton import FrameSkeleton  # import the newly created GUI file
 from wx.lib.pubsub import pub
-from ConfigParser import SafeConfigParser
-
-# TODO: Remove when testing complete
-from test.utils import make_sin_data
 
 
-# Magic numbers relating to hardware. They convert sent voltage to current.
-# They are determined by experimental measurement
-HIGH_HARDWARD_CONST = 1840.
-LOW_HARDWARE_CONST = 66.
+class PVapp(wx.App):
+    """docstring for PVapp"""
+    def OnInit(self):
+        self.legacy_view = GUIController(None)
+        self.legacy_view.Show()
 
-# A 10V limit is imposed due to limited the output voltage of the datacard
-LOW_VOLTAGE_LIMIT = 10
+        self.controller = PlaceholderController(self.legacy_view)
 
-# A 1.5V limit is imposed as a limit owing to the current limit of
-# the power supply.
-HIGH_VOLTAGE_LIMIT = 1.5
-
-# Constant that works, so the threshold doesn't get to big
-THRESHOLD_CONST = 5
-
-MAX_LOCALE_CHAR = 256
+        self.data_panel_controller = DataPanelHandler(
+            self.legacy_view.Data,
+            self.legacy_view.data_panel,
+            self.legacy_view
+        )
+        return True
 
 
-CHANNEL_INDEX = {
-    'Reference': 1,
-    'PC': 2,
-    'PL': 3
-}
+class PlaceholderController(object):
+    """A transitional class for controller methods"""
+    def __init__(self, legacy_view):
+        super(PlaceholderController, self).__init__()
+        self.view = legacy_view
+        self.__InitHandlers()
+        self.__InitSubscriptions()
+
+    def __InitHandlers(self):
+        # Connect Events waveform parameters
+        self.view.m_Intensity.Bind(wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
+        self.view.m_Period.Bind(wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
+        self.view.m_Offset_Before.Bind(wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
+        self.view.m_Offset_After.Bind(wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
+        self.view.m_Threshold.Bind(wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
+
+        self.view.m_Output.Bind(wx.EVT_CHOICE, self.view.onWaveformParameters)
+        self.view.m_Waveform.Bind(wx.EVT_CHOICE, self.view.onWaveformParameters)
+
+        # data collection parameters
+        self.view.m_samplingFreq.Bind(wx.EVT_KILL_FOCUS, self.view.onCollectionParameters)
+        self.view.m_Binning.Bind(wx.EVT_KILL_FOCUS, self.view.onCollectionParameters)
+
+        self.view.m_voltageRange.Bind(wx.EVT_CHOICE, self.view.onCollectionParameters)
+
+        # measurement events
+        self.view.m_Measure.Bind(wx.EVT_BUTTON, self.view.Perform_Measurement)
+        self.view.m_PCCalibration.Bind(wx.EVT_BUTTON, self.onPCCalibration)
+
+        # save events
+        self.view.m_Save.Bind(wx.EVT_BUTTON, self.view.onSave)
+        self.view.m_SaveData.Bind(wx.EVT_BUTTON, self.view.onSaveData)
+        self.view.m_Load.Bind(wx.EVT_BUTTON, self.view.onLoad)
+        self.view.m_LoadData.Bind(wx.EVT_BUTTON, self.view.onLoadData)
+
+    def __InitSubscriptions(self):
+
+        # data transformations
+        pub.subscribe(self.view.Data.revertData, 'transform.revert')
+        pub.subscribe(self.view.Data.invertHandler, 'transform.invert')
+        pub.subscribe(self.view.fftHandler, 'transform.fft')
+        pub.subscribe(self.view.Data.binHandler, 'transform.bin')
+        pub.subscribe(self.view.Data.offsetHandler, 'transform.offset')
+
+        # plot changes
+        pub.subscribe(self.view.onStatusUpdate, 'statusbar.update')
+        pub.subscribe(self.view.plotHandler, 'update.plot')
+        pub.subscribe(self.view.plotHandler, 'data.changed')
+
+        # UPDATE write only textboxes
+        # pub.subscribe(self.view.setPCCalibrationMean, 'calibration.pc')
+        # pub.subscribe(self.view.setPCCalibrationStd, 'calibration.pc')
+
+        pub.subscribe(self.view.setWaveformParameters, 'waveform.change')
+        pub.subscribe(self.view.setCollectionParameters, 'collection.change')
+
+        # UPDATE Data Panel displayed views
+        pub.subscribe(self.updateDataPanelFixed, 'waveform.change')
+        pub.subscribe(self.updateDataPanelFixed, 'collection.change')
+
+        pub.subscribe(self.listener, 'collection')
+        pub.subscribe(self.listener, 'transform')
+        pub.subscribe(self.listener, 'data')
+        pub.subscribe(self.listener, 'update')
+
+    def listener(self, message=pub.AUTO_TOPIC):
+        print("message heard: {0}".format(message))
+        # self.view.onStatusUpdate(str(message))
+
+    def updateDataPanelFixed(self):
+        self.view.data_panel.setDataPoints(
+            self.view.metadata.get_total_data_points()
+        )
+        self.view.data_panel.setWaveform(
+            self.view.metadata.waveform
+        )
+        self.view.data_panel.setFrequency(
+            self.view.metadata.get_frequency()
+        )
+        self.view.data_panel.setAmplitude(
+            self.view.metadata.amplitude
+        )
+
+    def onPCCalibration(self, event):
+        print('onPCCalibration')
+        self.view.ShowCalibrationModal()
+
+        null_metadata = copy.deepcopy(self.view.metadata)
+        null_metadata.waveform = "NullWave"
+        null_metadata.averaging = 1
+
+        null_pulse = LightPulse(null_metadata)
+
+        # Using that instance we then run the lights,
+        # and measure the outputs
+        measurement_handler = MeasurementHandler()
+        measurement_handler.add_to_queue(
+            null_pulse.complete_waveform,
+            null_metadata
+        )
+
+        calibration_data = measurement_handler.single_measurement()
+        self.view.metadata.pc_calibration.update_data(calibration_data)
+        # We then plot the datas, this has to be changed if the plots want
+        # to be updated on the fly.
+
+        pub.sendMessage('calibration.pc')
 
 
-class ExperimentSettings(object):
-    """docstring for ExperimentSettings"""
-
-    def __init__(self):
-        super(ExperimentSettings, self).__init__()
-        self.binning = None
-        self.averaging = None
-        self.channel = None
-        self.threshold = None
-        self.Voltage_Threshold = None
-        self.inverted_channels = {
-            'Reference': True,
-            'PC': False,
-            'PL': True
-        }
-        self.sample_rate = np.float32(daq.DAQmx_InputSampleRate)
-
-    def determine_output_channel(self):
-        # Just a simple function choosing the correct output channel
-        # based on the drop down box
-        if self.channel == 'High (2A/V)':
-            self.channel_name = r'ao0'
-            self.voltage_threshold = self.threshold / HIGH_HARDWARD_CONST
-        elif self.channel == r'Low (50mA/V)':
-            self.chanel_name = r'ao1'
-            self.voltage_threshold = self.threshold / LOW_HARDWARE_CONST
-
-        return self.channel_name, self.voltage_threshold
-
-    def get_settings_as_dict(self):
-        meta_data = {
-            'Channel': self.channel,
-            'Averaging': self.averaging,
-            'Measurement_Binning': self.binning,
-            'Threshold_mA': self.threshold,
-            'inverted_channels': self.inverted_channels,
-            'sample_rate': self.sample_rate
-        }
-        return meta_data
-
-
-class ExperimentData(object):
-    """docstring for ExperimentData"""
-    def __init__(self, arg):
-        super(ExperimentData, self).__init__()
-        self.arg = arg
-
-
-class AppController(object):
-    """docstring for AppController"""
-    def __init__(self, arg):
-        super(AppController, self).__init__()
-        self.arg = arg
-
-
+# hybrid view/controller
 class GUIController(FrameSkeleton):
     """
     Controller to handle interface with wx UI
@@ -117,38 +169,27 @@ class GUIController(FrameSkeleton):
 
     def __init__(self, parent):
 
-        # TODO: remove when finished testing data Transformations
-        dat = make_sin_data()
-        self.Data = dat
-        self.RawData = dat
-
+        # models
         self.metadata = ExperimentSettings()
 
-        self.lightpulse = daq.LightPulse(
-            waveform='Cos',
-            amplitude=0.5,
-            offset_before=1,
-            offset_after=10,
-            duration=1,
-            voltage_threshold=150
-        )
+        self.Data = ExperimentData(metadata=self.metadata)
+
+        self.light_pulse = LightPulse(self.metadata)
 
         # setup file data
         self.dirname = os.getcwd()
         self.data_file = "untitled.dat"
         self.metadata_file = "untitled.inf"
 
-        self._InitUI(parent)
-        self._InitSubscriptions()
-        self._InitValidators()
+        self.__InitUI(parent)
+        self.__InitValidators()
 
-    def _InitUI(self, parent):
+    def __InitUI(self, parent):
         # initialize parent class
         FrameSkeleton.__init__(self, parent)
 
         # setup Matplotlib Canvas panel
         self.Fig1 = CanvasPanel(self.Figure1_Panel)
-        self.Fig1.labels('Raw Data', 'Time (s)', 'Voltage (V)')
 
         # make status bars
         m_statusBar = wx.StatusBar(self)
@@ -161,7 +202,7 @@ class GUIController(FrameSkeleton):
         self.m_notebook1.AddPage(
             self.data_panel,
             u"Data Processing",
-            True
+            # True
         )
 
         # Setup the Menu
@@ -179,29 +220,15 @@ class GUIController(FrameSkeleton):
 
         self.SetMenuBar(menu_bar)
 
-    def _InitSubscriptions(self):
-        # data transformations
-        pub.subscribe(self.revertData, 'transform.revert')
-        pub.subscribe(self.invertHandler, 'transform.invert')
-        pub.subscribe(self.fftHandler, 'transform.fft')
-        pub.subscribe(self.binHandler, 'transform.bin')
-        pub.subscribe(self.offsetHandler, 'transform.offset')
+        # initialise view with model parameters
+        self.m_voltageRange.AppendItems(INPUT_VOLTAGE_RANGE_STR)
+        self.m_Waveform.AppendItems(WAVEFORMS)
+        self.m_Output.AppendItems(OUTPUTS)
 
-        # plot changes
-        pub.subscribe(self.onStatusUpdate, 'statusbar.update')
-        pub.subscribe(self.plotHandler, 'update.plot')
-        pub.subscribe(self.plotHandler, 'data.changed')
+        self.setWaveformParameters()
+        self.setCollectionParameters()
 
-        # TODO initialise these views
-        # widget views
-        # pub.subscribe(self.setFrequency, 'waveform.changed')
-        # pub.subscribe(self.setSampleDataPoints, 'settings.changed')
-        # pub.subscribe(self.setPCCalibrationMean, 'pccalibration')
-        # pub.subscribe(self.setPCCalibrationStd, 'pccalibration')
-
-
-
-    def _InitValidators(self):
+    def __InitValidators(self):
 
         # Waveform validators
         self.m_Intensity.SetValidator(NumRangeValidator(numeric_type='int'))
@@ -215,111 +242,128 @@ class GUIController(FrameSkeleton):
         self.m_Averaging.SetValidator(NumRangeValidator(numeric_type='int'))
         self.m_Binning.SetValidator(NumRangeValidator(numeric_type='int'))
 
+    def setPCCalibrationMean(self):
+        self.m_pcCalibrationMean.SetValue('{0:3.3f}'.format(
+            self.metadata.pc_calibration_mean
+        ))
 
+    def setPCCalibrationStd(self):
+        self.m_pcCalibrationStd.SetValue('{0:3.3f}'.format(
+            self.metadata.pc_calibration_std
+        ))
+
+    def setSampleDataPoints(self, sample_data_points):
+        self.m_DataPoint.SetValue('{0:.2e}'.format(sample_data_points))
+
+    def setFrequency(self, frequence_val):
+        self.m_Frequency.SetValue('{0:3.3f}'.format(frequence_val))
+
+    def setWaveformParameters(self):
+        self.m_Intensity.SetValue(str(self.metadata.amplitude))
+        self.m_Period.SetValue(str(self.metadata.duration))
+        self.m_Offset_Before.SetValue(str(self.metadata.offset_before))
+        self.m_Offset_After.SetValue(str(self.metadata.offset_after))
+        self.setFrequency(self.metadata.get_frequency())
+
+    def setCollectionParameters(self):
+        self.m_Binning.SetValue(str(self.metadata.binning))
+        self.m_Averaging.SetValue(str(self.metadata.averaging))
+        self.m_Threshold.SetValue(str(self.metadata.threshold))
+        self.m_samplingFreq.SetValue(str(self.metadata.sample_rate))
+
+        self.setSampleDataPoints(self.metadata.get_total_data_points())
 
 
     #################################
     # Event Handlers for Measurements
-
-
     def Perform_Measurement(self, event):
-        # all widgets are refreshed
-        # A check is performed, and if failed, event is skipped
+
+        print("GUIController: Perform_Measurement")
+
+        # Using that instance we then run the lights,
+        # and measure the outputs
+        self.measurement_handler = MeasurementHandler()
+        measurement_handler.add_to_queue(
+            self.light_pulse.complete_waveform,
+            self.metadata
+        )
+
+        raw_data = self.measurement_handler.single_measurement()
+        self.Data.updateRawData(raw_data)
+        self.Data.Data = utils.bin_data(raw_data, self.metadata.binning)
+        # We then plot the datas, this has to be changed if the plots want
+        # to be updated on the fly.
+
+        pub.sendMessage('update.plot')
 
 
-        self.onWaveformParameters(self, event)
-        self.onCollectionParameters(self, event)
+    def fftHandler(self):
+        channel = self.data_panel.m_fftChoice.GetStringSelection()
+        freq_data = self.Data.fftOperator(channel, self.metadata.get_total_time())
+        self.PlotData(freq_data, title=['FFT of Raw data', 'Frequency (hz)', 'Voltage (V)'])
 
-        # find what channel we are using, and what the voltage offset then is
-        Channel, Voltage_Threshold = self.metadata.determine_output_channel()
 
-        self.CHK_Voltage_Threshold(Voltage_Threshold, event)
+    def onWaveformParameters(self, event):
+        self.metadata.A = float(self.m_Intensity.GetValue())
+        self.metadata.Duration = float(self.m_Period.GetValue())
+        self.metadata.Offset_Before = float(self.m_Offset_Before.GetValue())
+        self.metadata.Offset_After = float(self.m_Offset_After.GetValue())
+        self.metadata.Waveform = self.m_Waveform.GetStringSelection()
 
-        # This the event hasn't been skipped then continue with the code.
-        self.m_scrolledWindow1.Refresh()
-        if not event.GetSkipped():
+        pub.sendMessage('waveform.change')
 
-            # We put all that info into the take measurement section, which is
-            # a instance definition. There are also global variables that
-            # go into this
-            measurement_handler = daq.MeasurementHandler(
-                self.light_pulse.complete_waveform,
-                self.metadata.averaging,
-                Channel,
-                self.light_pulse.t[-1],
-                InputVoltageRange=self.InputVoltageRange
-            )
 
-            # Using that instance we then run the lights,
-            # and measure the outputs
-            self.Data = utils.bin_data(measurement_handler.Measure(), self.metadata.binning)
-            self.RawData = np.copy(self.Data)
-            # We then plot the datas, this has to be changed if the plots want
-            # to be updated on the fly.
+    def onCollectionParameters(self, event):
+        # TODO: refactor so it obeys DRY
 
-            pub.sendMessage('update.plot')
-            event.Skip()
-        else:
-            self.m_scrolledWindow1.Refresh()
+        self.metadata.binning = int(self.m_Binning.GetValue())
+        self.metadata.averaging = int(self.m_Averaging.GetValue())
+        self.metadata.channel = self.m_Output.GetStringSelection()
+        self.metadata.threshold = float(self.m_Threshold.GetValue())
+        self.metadata.sample_rate = float(self.m_samplingFreq.GetValue())
+        self.metadata.sample_data_points = self.metadata.get_total_data_points()
 
+        pub.sendMessage('collection.change')
 
     ##########################
-    # Error Handling functions
+    # Plot Handlers
+    #
 
-    def CurrentLimits(self, event):
-        """
-        Determines the appropriate current limit for the box
-        """
-        try:
-            if self.m_Output.GetStringSelection() == 'Low (50mA/V)':
-                if float(self.m_Intensity.GetValue()) > LOW_VOLTAGE_LIMIT:
-                    self.m_Intensity.SetValue(str(LOW_VOLTAGE_LIMIT))
+    def plotHandler(self):
+        self.PlotData(self.Data.Data)
 
-            elif self.m_Output.GetStringSelection() == 'High (2A/V)':
+    def PlotData(self, data, data_labels=['Reference', 'PC', 'PL'],
+                 title=['Raw Data', 'Time (s)', 'Voltage (V)'], e=None):
 
-                if float(self.m_Intensity.GetValue()) > HIGH_VOLTAGE_LIMIT:
-                    self.m_Intensity.SetValue(str(HIGH_VOLTAGE_LIMIT))
+        self.Fig1.clear()
+        labels = data_labels
+        colours = ['b', 'r', 'g']
 
-            return False
-        except:
-
-            return False
-
-
-    def CHK_Voltage_Threshold(self, Voltage_Threshold, event):
-        if Voltage_Threshold > self.Intensity:
-            if Voltage_Threshold > LOW_HARDWARE_CONST * THRESHOLD_CONST:
-                self.m_Threshold.SetBackgroundColour('RED')
-                event.Skip()
+        # this is done not to clog up the plot with many points
+        if data.shape[0] > 1000:
+            num = data.shape[0] // 1000
         else:
-            self.m_Threshold.SetBackgroundColour(
-                wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
+            num = 1
+
+        # This plots the figure
+        for i, label, colour in zip(data[:, 1:].T, labels, colours):
+
+            self.Fig1.draw_points(
+                data[::num, 0],
+                i[::num],
+                '.',
+                Color=colour,
+                Label=label
             )
 
-    def CHK_int(self, Textbox, event):
-        try:
-            return int(Textbox.GetValue())
-            Textbox.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW))
-        except:
-            Textbox.SetBackgroundColour('RED')
-            event.Skip()
-
-    def CHK_float(self, Textbox, event):
-        try:
-            # print Textbox.GetValue(),float(Textbox.GetValue())
-            Textbox.SetBackgroundColour(wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW))
-            return float(Textbox.GetValue())
-        except:
-            # print'yeah'
-            Textbox.SetBackgroundColour('RED')
-
-            event.Skip()
-            return 0
+        self.Fig1.legend()
+        self.Fig1.labels(title[0], title[1], title[2])
+        self.Fig1.update()
+        if e is not None:
+            e.skip()
 
     #################
     # Helper methods:
-
-
     def defaultFileDialogOptions(self):
         """
         Return a dictionary with file dialog options that can be
@@ -339,90 +383,12 @@ class GUIController(FrameSkeleton):
         dialog.Destroy()
         return userProvidedFilename
 
-    ##########################
-    # Model View Event Handlers
-    #
-
-    def onSamplingFreq(self, event):
-        pass
-
-
-    def onVoltageRange(self, event):
-        pub.sendMessage('update.plot')
-
-    def PlotData(self, e=None):
-
-        self.Fig1.clear()
-        labels = ['Reference', 'PC', 'PL']
-        colours = ['b', 'r', 'g']
-
-        print(self.Data.shape[0])
-        print(self.Data)
-        # this is done not to clog up the plot with many points
-        if self.Data.shape[0] > 1000:
-            num = self.Data.shape[0] // 1000
-        else:
-            num = 1
-
-        # This plots the figure
-        for i, label, colour in zip(self.Data[:, 1:].T, labels, colours):
-
-            self.Fig1.draw_points(
-                self.Data[::num, 0],
-                i[::num],
-                '.',
-                Color=colour,
-                Label=label
-            )
-
-        self.Fig1.legend()
-        self.Fig1.update()
-        if e is not None:
-            e.skip()
-
-
-    def Num_Data_Points_Update(self, event):
-        """
-        Updates main frame with estimated data point total and frequency
-        """
-        self.onWaveformParameters(self, event)
-        self.onCollectionParameters(self, event)
-        event.Skip()
-
-
-    def onCollectionParameters(self, event):
-        # TODO: refactor so it obeys DRY
-        self.metadata.binning = self.CHK_int(self.m_Binning, event)
-        self.metadata.averaging = self.CHK_int(self.m_Averaging, event)
-        self.metadata.channel = self.m_Output.GetStringSelection()
-        self.metadata.threshold = self.CHK_float(self.m_Threshold, event)
-        self.metadata.sample_rate = self.CHK_float(self.m_samplingFreq, event)
-        estimated_data = (self.metadata.time * self.metadata.sample_rate / self.metadata.binning)[0]
-        self.metadata.sample_data_points = estimated_data
-
-        # pub.subscribe(self.setFrequency, 'waveform.changed')
-
-    def onWaveformParameters(self, event):
-        self.lightpulse.A = self.CHK_float(self.m_Intensity, event)
-        self.lightpulse.Duration = self.CHK_float(self.m_Period, event)
-        self.lightpulse.Offset_Before = self.CHK_float(self.m_Offset_Before, event)
-        self.lightpulse.Offset_After = self.CHK_float(self.m_Offset_After, event)
-        self.lightpulse.Waveform = self.m_Waveform.GetStringSelection()
-
-        # pub.subscribe(self.setSampleDataPoints, 'settings.changed')
-
-    def setPCCalibrationMean(self, pc_calibration_mean):
-        pass
-
-    def setPCCalibrationStd(self, pc_calibration_std):
-        pass
-
-    def setSampleDataPoints(self, sample_data_points):
-        self.m_DataPoint.SetValue('{0:.2e}'.format(sample_data_points))
-
-    def setFrequency(self, frequence_val):
-        self.m_Frequency.SetValue('{0:3.3f}'.format(frequence_val))
-
+    def ShowCalibrationModal(self):
+        msg_text = (
+            "Please remove sample from measurement area\n"
+            "Only one PC calibration is necessary per experimental session"
+        )
+        wx.MessageBox(msg_text, 'Info', wx.OK | wx.ICON_INFORMATION)
 
     ##########################
     # App state Event Handlers
@@ -431,9 +397,6 @@ class GUIController(FrameSkeleton):
         """
         Method to handle dialogue window and saving data to file
         """
-        self.onWaveformParameters(self, event)
-        self.onCollectionParameters(self, event)
-
 
         dialog = wx.FileDialog(
             None,
@@ -449,14 +412,12 @@ class GUIController(FrameSkeleton):
             self.dirname = os.path.dirname(dialog_path)
             self.SaveName = os.path.splitext(os.path.basename(dialog_path))[0]
 
-            metadata_dict = self.Make_List_For_Inf_Save(event)
-
             experiment_settings = self.metadata.get_settings_as_dict()
-            waveform_settings = self.lightpulse.get_settings_as_dict()
+            waveform_settings = self.light_pulse.get_settings_as_dict()
             metadata_dict = experiment_settings.copy()
 
-            utils.OutputData().save_data(self.Data, self.SaveName, self.dirname)
-            utils.OutputData().save_metadata(
+            utils.save_data(self.Data.Data, self.SaveName, self.dirname)
+            utils.save_metadata(
                 metadata_dict,
                 self.SaveName,
                 self.dirname
@@ -469,7 +430,14 @@ class GUIController(FrameSkeleton):
         event.Skip()
 
     def onSaveData(self, event):
-        pass
+        print("onSaveData")
+        if self.askUserForFilename(style=wx.SAVE,
+                                   **self.defaultFileDialogOptions()):
+            utils.save_data(self.Data.Data, self.data_file, self.dirname)
+
+        # print(filename)
+        # fullpath = os.path.join(self.dirname, self.data_file)
+        # self.Data.updateRawData(utils.load_data(fullpath))
 
 
     def onLoad(self, event):
@@ -488,7 +456,7 @@ class GUIController(FrameSkeleton):
 
         if dialog.ShowModal() == wx.ID_OK:
 
-            metadata_dict = utils.OutputData().load_metadata(dialog.GetPath())
+            metadata_dict = utils.load_metadata(dialog.GetPath())
             metadata_stringified = dict(
                 [a, str(x)] for a, x in metadata_dict.iteritems()
             )
@@ -523,12 +491,12 @@ class GUIController(FrameSkeleton):
         if self.askUserForFilename(style=wx.OPEN,
                                    **self.defaultFileDialogOptions()):
             fullpath = os.path.join(self.dirname, self.data_file)
-            self.Data = utils.OutputData().load_data(fullpath)
-            self.RawData = np.copy(self.Data)
+            self.Data.updateRawData(utils.load_data(fullpath))
 
-            print(self.Data)
+            print(self.Data.Data)
             pub.sendMessage('update.plot')
-            self.Num_Data_Points_Update(event)
+            self.onWaveformParameters(self, event)
+            self.onCollectionParameters(self, event)
 
     def onExit(self, event):
         self.Close()
@@ -553,72 +521,46 @@ class GUIController(FrameSkeleton):
         else:
             self.m_statusBar.SetStatusText(status)
 
-    def plotHandler(self):
-        self.PlotData()
-
-    def onDetermineOffset(self, event):
-        """
-        Opens custom dialog box with interactive offset determination
-        """
-        if self.Data is not None:
-            title = 'Determine offset interactively'
-            chgdep = ChangeDepthDialog(None, title=title)
-            chgdep.ShowModal()
-            chgdep.Destroy()
-        else:
-            pub.sendMessage(
-                'statusbar.update',
-                'No data available',
-                error=True)
-
-    ####################################
-    # Data Transformation Event Handlers
-    #
-
-    def revertData(self):
-        self.Data = np.copy(self.RawData)
-        pub.sendMessage('data.changed')
-
-
-    def invertHandler(self, channel):
-        self.Data[:, CHANNEL_INDEX[channel]] *= -1
-        self.metadata.inverted_channels[channel] = not self.metadata.inverted_channels[channel]
-        pub.sendMessage('data.changed')
-
-    def offsetHandler(self, offset_type=None, offset=None, channel=None):
-        if offset_type == 'y':
-            index = CHANNEL_INDEX[channel]
-            self.Data[:, index] = self.Data[:, index] + offset
-        elif offset_type == 'start_x':
-            self.Data = self.Data[self.Data[:, 0] > offset, :]
-        elif offset_type == 'end_x':
-            # so this isn't cumulative
-            offset = self.RawData[-1, 0] - offset
-            self.Data = self.Data[self.Data[:, 0] < offset, :]
-        pub.sendMessage('data.changed')
-
-
-    def fftHandler(self, offset_type, distance):
-        pass
-
-    def binHandler(self, bin_size):
-        self.Data = utils.bin_data(self.Data, bin_size)
-        pub.sendMessage('data.changed')
-
+    # def onDetermineOffset(self, event):
+    #     """
+    #     Opens custom dialog box with interactive offset determination
+    #     """
+    #     if self.Data.Data is not None:
+    #         title = 'Determine offset interactively'
+    #         chgdep = ChangeDepthDialog(None, title=title)
+    #         chgdep.ShowModal()
+    #         chgdep.Destroy()
+    #     else:
+    #         pub.sendMessage(
+    #             'statusbar.update',
+    #             'No data available',
+    #             error=True)
 
 
 class DataProcessingPanel(DataPanel):
 
     def __init__(self, parent):
+        self.SLIDER_MIN = 0
+        self.SLIDER_MAX = 100
+        self.SLIDER_INITIAL = 100
+
         # initialize parent class
         DataPanel.__init__(self, parent)
 
-        self.m_yChannelChoice.AppendItems(['Reference', 'PC', 'PL'])
+        self.__InitLayout()
 
-        self.m_startXOffset.SetValidator(NumRangeValidator(numeric_type='float'))
-        self.m_endXOffset.SetValidator(NumRangeValidator(numeric_type='float'))
+    def __InitLayout(self):
+        self.m_OffsetSlider.SetRange(self.SLIDER_MIN, self.SLIDER_MAX)
+        self.m_OffsetSlider.SetValue(self.SLIDER_MAX)
+
+        self.m_offsetChannelChoice.AppendItems(CHANNELS)
+        self.m_fftChoice.AppendItems(CHANNELS)
+
+        self.m_leftCropDistance.SetValidator(NumRangeValidator(numeric_type='float'))
+        self.m_rightCropDistance.SetValidator(NumRangeValidator(numeric_type='float'))
         self.m_yOffset.SetValidator(NumRangeValidator(numeric_type='float'))
         self.m_binSize.SetValidator(NumRangeValidator())
+
 
     #################
     # UI listeners
@@ -627,12 +569,12 @@ class DataProcessingPanel(DataPanel):
         self.m_DataPoints.SetValue(str(num_data_points))
 
     def setWaveform(self, waveform_name):
-        self.m_Waveform.SetValue(str(money))
+        self.m_Waveform.SetValue(str(waveform_name))
 
     def setFrequency(self, frequence_val):
         self.m_Frequency.SetValue(str(frequence_val))
 
-    def setIntensity(self, intensity_val):
+    def setAmplitude(self, intensity_val):
         self.m_Intensity.SetValue(str(intensity_val))
 
     #################
@@ -647,165 +589,129 @@ class DataProcessingPanel(DataPanel):
 
     def onRevertData(self, event):
         pub.sendMessage('transform.revert')
+        pub.sendMessage('data.changed')
 
-    def onOffset(self, event):
-        start_x_num = float(self.m_startXOffset.GetValue())
-        end_x_num = float(self.m_endXOffset.GetValue())
-        y_num = float(self.m_yOffset.GetValue())
-        channel = self.m_yChannelChoice.GetStringSelection()
-
+    def onCrop(self, event):
+        start_x_num = float(self.m_leftCropDistance.GetValue())
+        end_x_num = float(self.m_rightCropDistance.GetValue())
         pub.sendMessage('transform.offset', offset_type='start_x', offset=start_x_num, channel='all')
         pub.sendMessage('transform.offset', offset_type='end_x', offset=end_x_num, channel='all')
+
+    def onOffset(self, event):
+        """ Offset should be determined as mean over selected period"""
+        y_num = float(self.m_yOffset.GetValue())
+        channel = self.m_yChannelChoice.GetStringSelection()
         pub.sendMessage('transform.offset', offset_type='y', offset=y_num, channel=channel)
 
     def onInvertReference(self, event):
         pub.sendMessage('transform.invert', channel='Reference')
+        pub.sendMessage('data.changed')
 
     def onInvertPC(self, event):
         pub.sendMessage('transform.invert', channel='PC')
+        pub.sendMessage('data.changed')
 
     def onInvertPL(self, event):
         pub.sendMessage('transform.invert', channel='PL')
+        pub.sendMessage('data.changed')
 
 
+class DataPanelHandler(object):
+    """docstring for DataPanelHandler"""
+    def __init__(self, data, datapanel_view, acquisition_view):
+        super(DataPanelHandler, self).__init__()
 
-class ChangeDepthDialog(wx.Dialog):
+        self.HEIGHT = 2
 
-    def __init__(self, *args, **kw):
-        super(ChangeDepthDialog, self).__init__(*args, **kw)
+        self.Data = data
+        self.datapanel = datapanel_view
+        self.acquisition_view = acquisition_view
+        self.axes1 = self.acquisition_view.Fig1.axes
+        self.figure_canvas = self.acquisition_view.Fig1.canvas
+        self.__InitHandlers()
+        self.__PlotHandler()
 
-        self.InitUI()
-        self.SetSize((250, 200))
-        self.SetTitle("Offsets")
+    def __InitHandlers(self):
+        self.datapanel.m_OffsetSlider.Bind(wx.EVT_SLIDER, self.onSliderScroll)
 
+        self.datapanel.m_changeOffset.Bind(wx.EVT_BUTTON, self.onChangeOffset)
+        self.datapanel.m_interactiveOffsets.Bind(wx.EVT_BUTTON, self.onInteractiveOffsets)
 
-    def InitUI(self):
+    def __PlotHandler(self):
+        x = [self.datapanel.SLIDER_INITIAL] * self.HEIGHT
+        y = range(self.HEIGHT)
 
-        panel = wx.Panel(self)
-        vbox = wx.BoxSizer(wx.VERTICAL)
+        # matplotlib canvas
 
-        hbox1 = wx.BoxSizer(wx.HORIZONTAL)
-        hbox1.Add(wx.RadioButton(pnl, label='Custom'))
-        hbox1.Add(wx.TextCtrl(pnl), flag=wx.LEFT, border=5)
+        # TODO refactor
+        self.figure_canvas.line, = self.axes1.plot(x, y, linewidth=2)
 
-        tc_x_start = wx.TextCtrl(self, style=TE_READONLY)
-        tc_y_start = wx.TextCtrl(self, style=TE_READONLY)
-        tc_x_end = wx.TextCtrl(self, style=TE_READONLY)
-        tc_y_end = wx.TextCtrl(self, style=TE_READONLY)
+        labels = ['Reference', 'PC', 'PL']
+        colours = ['b', 'r', 'g']
+        data = self.Data.Data
+        for i, label, colour in zip(data[:, 1:].T, labels, colours):
 
-        x_start_label = wx.StaticText(self, 'x:')
-        y_start_label = wx.StaticText(self, 'y:')
-
-        x_end_label = wx.StaticText(self, 'x:')
-        y_end_label = wx.StaticText(self, 'y:')
-
-        sb_start = wx.StaticBox(panel, label="Initial Offset")
-        boxsizer_start = wx.StaticBoxSizer(sb, wx.VERTICAL)
-
-        sb_end = wx.StaticBox(panel, label="Final Offset")
-        boxsizer_end = wx.StaticBoxSizer(sb, wx.VERTICAL)
-
-        sb_start.Add(tc_x_start)
-        sb_start.Add(tc_x_start)
-
-        panel.SetSizer(sbs)
-
-        hbox2 = wx.BoxSizer(wx.HORIZONTAL)
-        okButton = wx.Button(self, label='Ok')
-        closeButton = wx.Button(self, label='Close')
-        hbox2.Add(okButton)
-        hbox2.Add(closeButton, flag=wx.LEFT, border=5)
-
-        vbox.Add(pnl, proportion=1,
-            flag=wx.ALL|wx.EXPAND, border=5)
-        vbox.Add(hbox2,
-            flag=wx.ALIGN_CENTER|wx.TOP|wx.BOTTOM, border=10)
-
-        self.SetSizer(vbox)
-
-        # event handlers
-        okButton.Bind(wx.EVT_BUTTON, self.OnClose)
-        closeButton.Bind(wx.EVT_BUTTON, self.OnClose)
-
-
-    def OnClose(self, e):
-        self.Destroy()
-
-
-class NumRangeValidator(wx.PyValidator):
-    """
-    Numeric Validator for a TextCtrl
-    """
-
-    def __init__(self, numeric_type='int', min_=0, max_=sys.maxint):
-        super(NumRangeValidator, self).__init__()
-        print(numeric_type)
-        if numeric_type == 'int':
-            assert min_ >= 0
-        self._min = min_
-        self._max = max_
-        self.numeric_type = numeric_type
-        if numeric_type == 'int':
-            self.convert_to_num = int
-            self.allow_chars = "-1234567890"
-            self.is_num = lambda x: x.isdigit()
-        elif numeric_type == 'float':
-            self.convert_to_num = float
-            self.allow_chars = "+-.e1234567890"
-            self.is_num = utils.is_float
-
-        # Event management
-        self.Bind(wx.EVT_CHAR, self.OnChar)
-
-    def Clone(self):
-        """Require override"""
-        return NumRangeValidator(self._min, self._max, self.numeric_type)
-
-    def Validate(self, win):
-        """
-        Override to validate window's value
-        Return: Boolean
-        """
-        txtCtrl = self.GetWindow()
-        val = txtCtrl.GetValue()
-        isValid = False
-        if self.is_num(val):
-            digit = self.convert_to_num(val)
-            if digit >= self._min and digit <= self._max:
-                isValid = True
-
-        if not isValid:
-            message = 'Data must be {0} between {1} and {2}'.format(
-                self.numeric_type,
-                self._min,
-                self._max
+            self.axes1.plot(
+                data[::1, 0],
+                i[::1],
+                '.',
+                color=colour,
+                # Label=label
             )
-            pub.sendMessage(
-                'statusbar.update',
-                message,
-                error=True
+
+    def onChangeOffset(self, event):
+        num = float(self.datapanel.m_yOffset.GetValue())
+        channel = self.datapanel.m_offsetChannelChoice.GetStringSelection()
+        self.Data.Data[:, CHANNEL_INDEX[channel]] = self.Data.Data[:, CHANNEL_INDEX[channel]] - num
+
+    def onInteractiveOffsets(self, event):
+        val = self.datapanel.m_OffsetSlider.GetValue()
+        num = self.offset_mean(val, 1)
+        channel = self.datapanel.m_offsetChannelChoice.GetStringSelection()
+        self.Data.Data[:, CHANNEL_INDEX[channel]] = self.Data.Data[:, CHANNEL_INDEX[channel]] - num
+
+    def onSliderScroll(self, event):
+        channel = self.datapanel.m_offsetChannelChoice.GetStringSelection()
+        index = CHANNEL_INDEX[channel]
+
+        obj = event.GetEventObject()
+        val = obj.GetValue()
+        mean_val = self.offset_mean(val, index)
+        self.update_graph(mean_val, index)
+        print(self.axes1)
+        self.move_line(val)
+        print(str(val))
+        print(mean_val)
+
+    def move_line(self, val):
+        x, y = self.figure_canvas.line.get_data()
+
+        x = [val] * self.HEIGHT
+        self.figure_canvas.line.set_xdata(np.array(x) + 0.001)
+        # self.axes1.set_xbound([0, x[-1] + 1])
+        self.figure_canvas.draw()
+
+    def offset_mean(self, val, col_num):
+        """
+        Determine mean value of col_num column between val to end of the array
+        """
+        col = self.Data.Data[:, col_num]
+        fudge_factor = len(col) / float(self.datapanel.SLIDER_MAX)
+        # print(col)
+        return np.min(col[int(fudge_factor) * val:])
+
+    def update_graph(self, mean_val, col_num):
+        labels = ['Reference', 'PC', 'PL']
+        colours = ['b', 'r', 'g']
+        data = np.copy(self.Data.Data)
+        data[:, col_num] = self.Data.Data[:, col_num] - mean_val
+        for i, label, colour in zip(data[:, 1:].T, labels, colours):
+
+            self.axes1.plot(
+                data[::1, 0],
+                i[::1],
+                '.',
+                color=colour,
+                # Label=label
             )
-            return isValid
-
-    def OnChar(self, event):
-        txtCtrl = self.GetWindow()
-        key = event.GetKeyCode()
-        isDigit = False
-        if key < 256:
-            isValid = chr(key) in self.allow_chars
-        if key in (wx.WXK_RETURN, wx.WXK_DELETE, wx.WXK_BACK) or key > 255 or isValid:
-            event.Skip()
-            return
-
-        if not wx.Validator_IsSilent():
-            # Beep to warn about invalid input
-            wx.Bell()
-        return
-
-    def TransferToWindow(self):
-        """Overridden to skip data transfer"""
-        return True
-
-    def TransferFromWindow(self):
-        """Overridden to skip data transfer"""
-        return True
+        del self.axes1.lines[1:4]
