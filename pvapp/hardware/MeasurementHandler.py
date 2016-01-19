@@ -6,11 +6,14 @@ from collections import deque
 from hardware.daq import WaveformThread
 from models.LightPulse import LightPulse
 
+from types import IntType
+
 
 class MeasurementHandler(object):
     """
     Controller to handle IO from NI datacard
     """
+
     def __init__(self):
 
         self._queue = deque()
@@ -56,30 +59,39 @@ class MeasurementHandler(object):
 
         element = self._queue.popleft()
 
+        # if averaging is greating than one run the whole thing a few times
         averaging = element[1].averaging
         assert averaging > 0, "Averaging={0}".format(averaging)
 
-        measurement_data, thread_time = self._run_thread(element[0], element[1])
+        measurement_data, thread_time = self._run_thread(
+            element[0], element[1])
 
         if averaging > 1:
             for i in range(averaging - 1):
-                thread_data, thread_time = self._run_thread(element[0], element[1])
+                thread_data, thread_time = self._run_thread(
+                    element[0], element[1])
                 measurement_data = np.vstack((thread_data,
                                               measurement_data))
                 # RunningTotal is weighted by the number of points
+                # I believe that the weights should be i and not i+1
                 measurement_data = np.average(measurement_data,
                                               axis=0,
-                                              weights=(1, i + 1))
+                                              weights=(1, i))
 
+        assert type(
+            self.NUM_CHANNELS) is IntType,\
+            "id is not an integer: %r" % self.NUM_CHANNELS
+        # make into nice array
+        data_set = np.reshape(measurement_data, (self.NUM_CHANNELS, int(
+            measurement_data.shape[0] / self.NUM_CHANNELS)), order='F')
         # what are going to be read
+        # data_set = np.empty((int(measurement_data.shape[0] / self.NUM_CHANNELS), self.NUM_CHANNELS))
 
-        data_set = np.empty((int(measurement_data.shape[0] / self.NUM_CHANNELS), self.NUM_CHANNELS))
-
-        for i in range(int(self.NUM_CHANNELS)):
+        # for i in range(int(self.NUM_CHANNELS)):
             # The data should be outputed one of each other, so divide it
             # up and roll it out
-            row_length = data_set.shape[0]
-            data_set[:, i] = measurement_data[i * row_length:(i + 1) * row_length]
+            # row_length = data_set.shape[0]
+            # data_set[:, i] = measurement_data[i * row_length:(i + 1) * row_length]
 
         data_set = np.vstack((thread_time, data_set.T)).T
         return data_set

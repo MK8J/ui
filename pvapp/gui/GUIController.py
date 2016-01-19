@@ -283,7 +283,7 @@ class GUIController(FrameSkeleton):
         # Using that instance we then run the lights,
         # and measure the outputs
         self.measurement_handler = MeasurementHandler()
-        measurement_handler.add_to_queue(
+        self.measurement_handler.add_to_queue(
             self.light_pulse.complete_waveform,
             self.metadata
         )
