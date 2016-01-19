@@ -41,7 +41,8 @@ class LightPulse(object):
 
     def _set_derived_parameters(self):
         self.total_time = (
-            self.Duration + self.Offset_Before / 1000 + self.Offset_After / 1000
+            self.Duration + self.Offset_Before /
+            1000 + self.Offset_After / 1000
         )
         self.frequence_val = 1. / self.total_time
 
@@ -52,10 +53,10 @@ class LightPulse(object):
         """
         # pad waveform with zeroes
 
-        v_before = np.zeros(
+        v_before = -0.1 * np.ones(
             int(self.output_samples * self.Offset_Before / 1000)
         )
-        v_after = np.zeros(
+        v_after = -0.1 * np.ones(
             int(self.output_samples * self.Offset_After / 1000)
         )
 
