@@ -61,6 +61,7 @@ class ExperimentSettings(object):
             self.channel_name = r'ao1'
             self.voltage_threshold = self.threshold / LOW_HARDWARE_CONST
 
+
     @property
     def amplitude(self):
         return self._amplitude
@@ -112,7 +113,7 @@ class ExperimentSettings(object):
             "offset_after": self.offset_after,
             "sample_rate": self.sample_rate,
             # ensures dict is passed to view in comprehensible format
-            "channel": self.channel,
+            "channel": self.channel_name,
 
             "binning": self.binning,
             "averaging": self.averaging

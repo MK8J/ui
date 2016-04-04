@@ -322,6 +322,8 @@ class GUIController(FrameSkeleton):
         self.metadata.Offset_Before = float(self.m_Offset_Before.GetValue())
         self.metadata.Offset_After = float(self.m_Offset_After.GetValue())
         self.metadata.Waveform = self.m_Waveform.GetStringSelection()
+        self.metadata.channel = self.m_Output.GetStringSelection()
+        self.metadata._determine_output_channel()
 
         pub.sendMessage('waveform.change')
 
@@ -330,7 +332,7 @@ class GUIController(FrameSkeleton):
 
         self.metadata.binning = int(self.m_Binning.GetValue())
         self.metadata.averaging = int(self.m_Averaging.GetValue())
-        self.metadata.channel = self.m_Output.GetStringSelection()
+        self.metadata.channel_name = self.m_Output.GetStringSelection()
         self.metadata.threshold = float(self.m_Threshold.GetValue())
         self.metadata.sample_rate = float(self.m_samplingFreq.GetValue())
         self.metadata.sample_data_points = self.metadata.get_total_data_points()

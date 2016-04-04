@@ -18,7 +18,7 @@ class MeasurementHandler(object):
 
         self._queue = deque()
 
-        self.NUM_CHANNELS = 3.
+        self.NUM_CHANNELS = 3
 
         self._logger = logging.getLogger()
 

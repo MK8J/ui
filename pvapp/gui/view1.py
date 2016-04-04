@@ -34,6 +34,9 @@ class FormElement(object):
 
 class View1(IncrementalApp):
     def __init__(self, parent):
+        '''
+        this builds a lot of the gui
+        '''
         IncrementalApp.__init__(self, parent)
 
         self.data_file = None
@@ -232,9 +235,12 @@ class View1(IncrementalApp):
         typed_inputs = {}
 
         for entry in form.widget_list:
+            # print 'id', entry.widget_id
             try:
                 type_func = known_types[entry.input_type]
+
                 if isinstance(entry.widget, wx.Choice):
+
                     typed_inputs[entry.widget_id] = entry.choices[
                         int(entry.widget.GetSelection())
                     ]

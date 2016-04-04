@@ -4,20 +4,28 @@ import ctypes
 import collections
 
 femto = ctypes.cdll.LoadLibrary(
-    'C:\Program Files (x86)\FEMTO\LUCI-10\Driver\LUCI_10.dll')
+    r'C:\Program Files (x86)\FEMTO\LUCI-10\Driver\LUCI_10.dll')
 
 # prints the number of attached devices
 # returns -1 on error
 
 
 class DLPCA_200():
+    '''
+    This is a class to control the DLPCA 200 from femto.de
+    For full controls the hardward needs to be in the state:
+        + gain switch set to remote
+        + insert high low setting
+        + insert ac/dc setting
+        + insert bandwidth setting
+    '''
 
     overload_command = 'GetStatusPin5'
     signal_command = 'GetStatusPin6'
     nothing_command = 'GetStatusPin7'
 
     data_low_dic = {
-        'pin_10': 'gain_LDB',
+        'pin_10': 'gain_LSB',
         'pin_11': 'gain',
         'pin_12': 'gain_MSB',
         'pin_13': 'acdc',
@@ -40,10 +48,10 @@ class DLPCA_200():
 
     # defult settngs
     NA = '0'
-    gain_LDB = '0'  # pin 10
+    gain_LSB = '0'  # pin 10
     gain = '0'     # pin 11
     gain_MSB = '0'  # pin 12
-    acdc = '0'     # pin 13
+    acdc = '1'     # pin 13
     voltage_amp = '1'  # pin 14
 
     # dic for settings
@@ -56,8 +64,8 @@ class DLPCA_200():
         8: '101',
         9: '110',
     }
-    acdc_setting = {'ac': '1',
-                    'dc': '0'}
+    acdc_setting = {'ac': '0',
+                    'dc': '1'}
 
     voltage_amp_setting = {True: '0',
                            False: '1'}
@@ -168,7 +176,7 @@ class DLPCA_200():
                 If *False* the voltage amplifer is turned off
         '''
         try:
-            self.voltage_amp = self.voltage_amp_setting(voltage_amp)
+            self.voltage_amp = self.voltage_amp_setting[voltage_amp]
         except:
 
             print 'invalid paramter, \'', str(voltage_amp), '\''
@@ -176,13 +184,13 @@ class DLPCA_200():
 
     def set_acdc_coupling(self, coupling):
         '''
-        Controls if the coupling used is ac or DC
-        voltage_amp: {'ac', 'dc'}
-                If  *ac*, ac coupling is used
-                If *dc*, dc coupling is used
+        Controls if the coupling used is AC or DC
+        voltage_amp: (dic {'ac', 'dc'})
+                If  *ac*, AC coupling is used
+                If *dc*, DC coupling is used
         '''
         try:
-            self.acdc = self.acdc_setting(coupling)
+            self.acdc = self.acdc_setting[coupling]
         except:
             print 'invalid paramter, \'', str(coupling), '\''
             print 'parameter ignored'
@@ -191,23 +199,25 @@ class DLPCA_200():
         '''
         sets the gain
             gain: (int)
-                sets the gain to the above value
+                sets the gain to the provided value
         '''
         try:
-            print 'here', self.voltage_amp
 
+            # print gain
             if self.voltage_amp_setting_i[self.voltage_amp]:
-                factor = 100
+                factor = 2
             else:
-                factor = 1
+                factor = 0
 
-            gain /= factor
+            gain -= factor
 
+            # print 'here here', gain
             gain = self.gain_settings[gain]
-
-            self.gain_LDB = str(gain[0])
+            self.gain_LSB = str(gain[2])
             self.gain = str(gain[1])
-            self.gain_MSB = str(gain[2])
+            self.gain_MSB = str(gain[0])
+
+
         except:
             print 'invalid paramter, \'', str(gain), '\''
             print 'parameter ignored'
@@ -249,10 +259,12 @@ class DLPCA_200():
 
         data_dic = getattr(self, ''.join(['data_', level, '_dic']))
         data = ''.join(getattr(self, v)
-                       for v in data_dic.values())
+                       for v in data_dic.values()[:: -1])
 
-        print data
-        return ctypes.c_int8(int(data, 2))
+        # print data, 'should be 00000010'
+        # print 'data_8bit:', data
+        return ctypes.c_uint8(int(data, 2))
+
 
     def set_values(self, data_low=None, data_high=None):
         '''
@@ -268,34 +280,19 @@ class DLPCA_200():
             data_high = self.data_8bit('high')
 
         # print data_low, data_high
+        # data_low = 'a'
+        # print'writing: returns',
+        # print data_high, data_low
+        # print '\t low', data_low, data_low.value, ctypes.sizeof(data_low)
+        # print '\t high', data_high, data_high.value
         print femto.WriteData(self.index, data_low, data_high)
+        # print 'written'
 
 
 print 'Testing:'
-dev1 = FemtoDLPCA_200(1)
-# dev1.light_up()
-print dev1.config_femto()
-# print dev1.get_info()
-print dev1.set_values()
-# print dev1.is_overloaded()
-# dev1.low_noise()
+dev1 = DLPCA_200(1)
+dev1.light_up()
 
-# dev1.light_up()
+dev1.config_femto(gain=9, voltage_amp=True, acdc='dc')
 
-# print femto.EnumerateUsbDevices()
-
-
-# if femto.LedOn(1) == ' 0 ':
-#     print 'need to use ctypes'
-#     femto.LedOn(ctypes.c_int(1))
-
-# ID = ctypes.c_int(10)
-# ctypes.byref
-# print ID
-# print ID
-# print femto.WriteAdapterID(1, ID)
-# ID = ctypes.c_int(0)
-# print femto.ReadAdapterID(1, ctypes.byref(ID))
-# print ID
-
-# print femto.GetProductString(ctypes.c_int(1),)
+dev1.light_down()

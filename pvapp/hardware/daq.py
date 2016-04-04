@@ -71,14 +71,13 @@ class WaveformThread(threading.Thread):
                  output_voltage_range,
                  output_sample_rate,
                  input_sample_rate,
-                 device='testdevice'):
+                 device='DAQ'):
 
 
         # print device
         # print config._sections
         self.deviceinf = config._sections[device]
-
-        print("Channel: ", Channel)
+        print self.deviceinf
         # check the inputs
         assert isinstance(waveform, np.ndarray)
         assert isinstance(Time, np.float64)
@@ -107,7 +106,7 @@ class WaveformThread(threading.Thread):
         self.Channel = Channel
 
         # obtain device info from the config file as dictionary
-        self.device_config = config._sections[configuration]
+        # self.device_config = config._sections[configuration]
 
         # this controls the input voltage range. (+-10,+-5, +-2,+-1)
 
@@ -157,17 +156,31 @@ class WaveformThread(threading.Thread):
         print('DAQmxCreateAOVoltageChan')
         # Creates channel(s) to generate voltage and adds the channel(s) to
         # the task you specify with taskHandle.
-        print self.deviceinf['name'] + '/' + self.Channel
-        self.CHK(nidaq.DAQmxCreateAOVoltageChan(
-            self.taskHandle_Write,
+        a =  self.deviceinf['name'] + '/' + self.Channel
 
-            self.deviceinf['name'] + '/' + self.Channel,
-            "",
-            float64(-self.OutputVoltageRange),
-            float64(self.OutputVoltageRange),
-            self.DAQmx_Val_Volts,
-            None
-        ))
+        print self.deviceinf['name'] + '/' + self.Channel
+        self.CHK(
+                nidaq.DAQmxCreateAOVoltageChan(
+                    self.taskHandle_Write,
+                    self.deviceinf['name'] + r'/' + self.Channel,
+                    "",
+                    float64(-self.OutputVoltageRange),
+                    float64(self.OutputVoltageRange),
+                    self.DAQmx_Val_Volts,
+                    None
+                )
+        )
+
+
+
+        # self.CHK(nidaq.DAQmxCreateAOVoltageChan( self.taskHandle_Write ,
+        #                            "Dev2/"+self.Channel,
+        #                            "",
+        #                            float64(-self.OutputVoltageRange),
+        #                            float64(self.OutputVoltageRange),
+        #                            self.DAQmx_Val_Volts,
+        #                            None))
+
         print("OutputVoltageRange: ", self.OutputVoltageRange)
         print(np.max(self.Write_data))
 
@@ -214,17 +227,20 @@ class WaveformThread(threading.Thread):
 
         print('DAQmxCreateAIVoltageChan')
         # creates an analog input voltage channel
-        self.CHK(nidaq.DAQmxCreateAIVoltageChan(
-            self.taskHandle_Read,
-            self.device_config['device_name']+"ai0:2",
-            self.deviceinf['name'] + '/' + "ai0:2",
-            "",
-            self.DAQmx_Val_Diff,  # this is the rise type
-            float64(-self.InputVoltageRange),
-            float64(self.InputVoltageRange),
-            self.DAQmx_Val_Volts,
-            None
-        ))
+        self.CHK(
+            nidaq.DAQmxCreateAIVoltageChan(
+                self.taskHandle_Read,
+                self.deviceinf['name']+ r'/' + "ai0:2",
+                "",
+                self.DAQmx_Val_Diff,  # this is the rise type
+                float64(-self.InputVoltageRange),
+                float64(self.InputVoltageRange),
+                self.DAQmx_Val_Volts,
+                None
+                )
+            )
+
+
 
         print('DAQmxCfgSampClkTiming')
         self.CHK(nidaq.DAQmxCfgSampClkTiming(
