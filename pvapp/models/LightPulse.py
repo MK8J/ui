@@ -12,7 +12,7 @@ class LightPulse(object):
         assert metadata.duration > 0
         assert metadata.offset_after >= 0
         assert metadata.offset_before >= 0
-        assert metadata.amplitude > 0
+        assert metadata.amplitude >= 0
         assert metadata.sample_rate > 0
 
         self.Waveform = metadata.waveform
@@ -41,8 +41,7 @@ class LightPulse(object):
 
     def _set_derived_parameters(self):
         self.total_time = (
-            self.Duration + self.Offset_Before /
-            1000 + self.Offset_After / 1000
+            self.Duration + self.Offset_Before / 1000 + self.Offset_After / 1000
         )
         self.frequence_val = 1. / self.total_time
 
@@ -53,10 +52,10 @@ class LightPulse(object):
         """
         # pad waveform with zeroes
 
-        v_before = -0.1 * np.ones(
+        v_before = np.zeros(
             int(self.output_samples * self.Offset_Before / 1000)
         )
-        v_after = -0.1 * np.ones(
+        v_after = np.zeros(
             int(self.output_samples * self.Offset_After / 1000)
         )
 
@@ -89,6 +88,9 @@ class LightPulse(object):
         self.time_array = np.linspace(
             0, total_time, num=complete_waveform.shape[0]
         )
+
+        complete_waveform[-1] = 1
+
         return complete_waveform
 
     # TODO: also should be Private method

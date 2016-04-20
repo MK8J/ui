@@ -76,6 +76,7 @@ class WaveformThread(threading.Thread):
 
         # print device
         # print config._sections
+        print config.sections()
         self.deviceinf = config._sections[device]
         print self.deviceinf
         # check the inputs
@@ -194,7 +195,6 @@ class WaveformThread(threading.Thread):
         # sample clock, and the number of samples to acquire or generate
         self.CHK(nidaq.DAQmxCfgSampClkTiming(
             self.taskHandle_Write,
-
             "/" + self.deviceinf['name'] + '/' + "ai/SampleClock",
             self.sampleRate,   # samples per channel
             self.DAQmx_Val_Rising,   # active edge

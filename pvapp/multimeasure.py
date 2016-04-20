@@ -299,7 +299,7 @@ class Controller(object):
                 )
             except KeyError as e:
                 raise("Missing value in Experiment Settings: {0}".format(e))
-        print measurement_list[0].amplitude
+
         return measurement_list
 
     def _parse_config(self, config):

@@ -24,7 +24,6 @@ from wx.lib.pubsub import pub
 
 class PVapp(wx.App):
     """docstring for PVapp"""
-
     def OnInit(self):
         self.legacy_view = GUIController(None)
         self.legacy_view.Show()
@@ -41,7 +40,6 @@ class PVapp(wx.App):
 
 class PlaceholderController(object):
     """A transitional class for controller methods"""
-
     def __init__(self, legacy_view):
         super(PlaceholderController, self).__init__()
         self.view = legacy_view
@@ -50,29 +48,20 @@ class PlaceholderController(object):
 
     def __InitHandlers(self):
         # Connect Events waveform parameters
-        self.view.m_Intensity.Bind(
-            wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
-        self.view.m_Period.Bind(
-            wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
-        self.view.m_Offset_Before.Bind(
-            wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
-        self.view.m_Offset_After.Bind(
-            wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
-        self.view.m_Threshold.Bind(
-            wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
+        self.view.m_Intensity.Bind(wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
+        self.view.m_Period.Bind(wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
+        self.view.m_Offset_Before.Bind(wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
+        self.view.m_Offset_After.Bind(wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
+        self.view.m_Threshold.Bind(wx.EVT_KILL_FOCUS, self.view.onWaveformParameters)
 
         self.view.m_Output.Bind(wx.EVT_CHOICE, self.view.onWaveformParameters)
-        self.view.m_Waveform.Bind(
-            wx.EVT_CHOICE, self.view.onWaveformParameters)
+        self.view.m_Waveform.Bind(wx.EVT_CHOICE, self.view.onWaveformParameters)
 
         # data collection parameters
-        self.view.m_samplingFreq.Bind(
-            wx.EVT_KILL_FOCUS, self.view.onCollectionParameters)
-        self.view.m_Binning.Bind(
-            wx.EVT_KILL_FOCUS, self.view.onCollectionParameters)
+        self.view.m_samplingFreq.Bind(wx.EVT_KILL_FOCUS, self.view.onCollectionParameters)
+        self.view.m_Binning.Bind(wx.EVT_KILL_FOCUS, self.view.onCollectionParameters)
 
-        self.view.m_voltageRange.Bind(
-            wx.EVT_CHOICE, self.view.onCollectionParameters)
+        self.view.m_voltageRange.Bind(wx.EVT_CHOICE, self.view.onCollectionParameters)
 
         # measurement events
         self.view.m_Measure.Bind(wx.EVT_BUTTON, self.view.Perform_Measurement)
@@ -245,14 +234,11 @@ class GUIController(FrameSkeleton):
         self.m_Intensity.SetValidator(NumRangeValidator(numeric_type='int'))
         self.m_Threshold.SetValidator(NumRangeValidator(numeric_type='int'))
         self.m_Period.SetValidator(NumRangeValidator(numeric_type='float'))
-        self.m_Offset_Before.SetValidator(
-            NumRangeValidator(numeric_type='float'))
-        self.m_Offset_After.SetValidator(
-            NumRangeValidator(numeric_type='float'))
+        self.m_Offset_Before.SetValidator(NumRangeValidator(numeric_type='float'))
+        self.m_Offset_After.SetValidator(NumRangeValidator(numeric_type='float'))
 
         # Data collection validators
-        self.m_samplingFreq.SetValidator(
-            NumRangeValidator(numeric_type='float'))
+        self.m_samplingFreq.SetValidator(NumRangeValidator(numeric_type='float'))
         self.m_Averaging.SetValidator(NumRangeValidator(numeric_type='int'))
         self.m_Binning.SetValidator(NumRangeValidator(numeric_type='int'))
 
@@ -287,6 +273,7 @@ class GUIController(FrameSkeleton):
 
         self.setSampleDataPoints(self.metadata.get_total_data_points())
 
+
     #################################
     # Event Handlers for Measurements
     def Perform_Measurement(self, event):
@@ -296,7 +283,7 @@ class GUIController(FrameSkeleton):
         # Using that instance we then run the lights,
         # and measure the outputs
         self.measurement_handler = MeasurementHandler()
-        self.measurement_handler.add_to_queue(
+        measurement_handler.add_to_queue(
             self.light_pulse.complete_waveform,
             self.metadata
         )
@@ -309,12 +296,12 @@ class GUIController(FrameSkeleton):
 
         pub.sendMessage('update.plot')
 
+
     def fftHandler(self):
         channel = self.data_panel.m_fftChoice.GetStringSelection()
-        freq_data = self.Data.fftOperator(
-            channel, self.metadata.get_total_time())
-        self.PlotData(
-            freq_data, title=['FFT of Raw data', 'Frequency (hz)', 'Voltage (V)'])
+        freq_data = self.Data.fftOperator(channel, self.metadata.get_total_time())
+        self.PlotData(freq_data, title=['FFT of Raw data', 'Frequency (hz)', 'Voltage (V)'])
+
 
     def onWaveformParameters(self, event):
         self.metadata.A = float(self.m_Intensity.GetValue())
@@ -322,17 +309,16 @@ class GUIController(FrameSkeleton):
         self.metadata.Offset_Before = float(self.m_Offset_Before.GetValue())
         self.metadata.Offset_After = float(self.m_Offset_After.GetValue())
         self.metadata.Waveform = self.m_Waveform.GetStringSelection()
-        self.metadata.channel = self.m_Output.GetStringSelection()
-        self.metadata._determine_output_channel()
 
         pub.sendMessage('waveform.change')
+
 
     def onCollectionParameters(self, event):
         # TODO: refactor so it obeys DRY
 
         self.metadata.binning = int(self.m_Binning.GetValue())
         self.metadata.averaging = int(self.m_Averaging.GetValue())
-        self.metadata.channel_name = self.m_Output.GetStringSelection()
+        self.metadata.channel = self.m_Output.GetStringSelection()
         self.metadata.threshold = float(self.m_Threshold.GetValue())
         self.metadata.sample_rate = float(self.m_samplingFreq.GetValue())
         self.metadata.sample_data_points = self.metadata.get_total_data_points()
@@ -453,6 +439,7 @@ class GUIController(FrameSkeleton):
         # fullpath = os.path.join(self.dirname, self.data_file)
         # self.Data.updateRawData(utils.load_data(fullpath))
 
+
     def onLoad(self, event):
         """
         Method to handle load metadata dialog window and update metadata state
@@ -479,21 +466,18 @@ class GUIController(FrameSkeleton):
             self.m_Output.SetStringSelection(metadata_stringified[u'Channel'])
             self.m_Averaging.SetValue(metadata_stringified[u'Averaging'])
             try:
-                self.m_Binning.SetValue(
-                    metadata_stringified[u'Measurement_Binning'])
+                self.m_Binning.SetValue(metadata_stringified[u'Measurement_Binning'])
             except:
                 self.m_Binning.SetValue(metadata_stringified[u'Binning'])
             self.m_Threshold.SetValue(metadata_stringified[u'Threshold_mA'])
 
+
             # waveform data
             self.m_Intensity.SetValue(metadata_stringified[u'Intensity_v'])
-            self.m_Waveform.SetStringSelection(
-                metadata_stringified[u'Waveform'])
+            self.m_Waveform.SetStringSelection(metadata_stringified[u'Waveform'])
 
-            self.m_Offset_Before.SetValue(
-                metadata_stringified[u'Offset_Before_ms'])
-            self.m_Offset_After.SetValue(
-                metadata_stringified[u'Offset_After_ms'])
+            self.m_Offset_Before.SetValue(metadata_stringified[u'Offset_Before_ms'])
+            self.m_Offset_After.SetValue(metadata_stringified[u'Offset_After_ms'])
             self.m_Period.SetValue(metadata_stringified[u'Peroid_s'])
 
         dialog.Destroy()
@@ -526,6 +510,7 @@ class GUIController(FrameSkeleton):
         )
         dialog.ShowModal()
         dialog.Destroy()
+
 
     def onStatusUpdate(self, status, is_error=False):
 
@@ -571,12 +556,11 @@ class DataProcessingPanel(DataPanel):
         self.m_offsetChannelChoice.AppendItems(CHANNELS)
         self.m_fftChoice.AppendItems(CHANNELS)
 
-        self.m_leftCropDistance.SetValidator(
-            NumRangeValidator(numeric_type='float'))
-        self.m_rightCropDistance.SetValidator(
-            NumRangeValidator(numeric_type='float'))
+        self.m_leftCropDistance.SetValidator(NumRangeValidator(numeric_type='float'))
+        self.m_rightCropDistance.SetValidator(NumRangeValidator(numeric_type='float'))
         self.m_yOffset.SetValidator(NumRangeValidator(numeric_type='float'))
         self.m_binSize.SetValidator(NumRangeValidator())
+
 
     #################
     # UI listeners
@@ -610,17 +594,14 @@ class DataProcessingPanel(DataPanel):
     def onCrop(self, event):
         start_x_num = float(self.m_leftCropDistance.GetValue())
         end_x_num = float(self.m_rightCropDistance.GetValue())
-        pub.sendMessage(
-            'transform.offset', offset_type='start_x', offset=start_x_num, channel='all')
-        pub.sendMessage(
-            'transform.offset', offset_type='end_x', offset=end_x_num, channel='all')
+        pub.sendMessage('transform.offset', offset_type='start_x', offset=start_x_num, channel='all')
+        pub.sendMessage('transform.offset', offset_type='end_x', offset=end_x_num, channel='all')
 
     def onOffset(self, event):
         """ Offset should be determined as mean over selected period"""
         y_num = float(self.m_yOffset.GetValue())
         channel = self.m_yChannelChoice.GetStringSelection()
-        pub.sendMessage(
-            'transform.offset', offset_type='y', offset=y_num, channel=channel)
+        pub.sendMessage('transform.offset', offset_type='y', offset=y_num, channel=channel)
 
     def onInvertReference(self, event):
         pub.sendMessage('transform.invert', channel='Reference')
@@ -637,7 +618,6 @@ class DataProcessingPanel(DataPanel):
 
 class DataPanelHandler(object):
     """docstring for DataPanelHandler"""
-
     def __init__(self, data, datapanel_view, acquisition_view):
         super(DataPanelHandler, self).__init__()
 
@@ -655,8 +635,7 @@ class DataPanelHandler(object):
         self.datapanel.m_OffsetSlider.Bind(wx.EVT_SLIDER, self.onSliderScroll)
 
         self.datapanel.m_changeOffset.Bind(wx.EVT_BUTTON, self.onChangeOffset)
-        self.datapanel.m_interactiveOffsets.Bind(
-            wx.EVT_BUTTON, self.onInteractiveOffsets)
+        self.datapanel.m_interactiveOffsets.Bind(wx.EVT_BUTTON, self.onInteractiveOffsets)
 
     def __PlotHandler(self):
         x = [self.datapanel.SLIDER_INITIAL] * self.HEIGHT
@@ -683,15 +662,13 @@ class DataPanelHandler(object):
     def onChangeOffset(self, event):
         num = float(self.datapanel.m_yOffset.GetValue())
         channel = self.datapanel.m_offsetChannelChoice.GetStringSelection()
-        self.Data.Data[:, CHANNEL_INDEX[channel]] = self.Data.Data[
-            :, CHANNEL_INDEX[channel]] - num
+        self.Data.Data[:, CHANNEL_INDEX[channel]] = self.Data.Data[:, CHANNEL_INDEX[channel]] - num
 
     def onInteractiveOffsets(self, event):
         val = self.datapanel.m_OffsetSlider.GetValue()
         num = self.offset_mean(val, 1)
         channel = self.datapanel.m_offsetChannelChoice.GetStringSelection()
-        self.Data.Data[:, CHANNEL_INDEX[channel]] = self.Data.Data[
-            :, CHANNEL_INDEX[channel]] - num
+        self.Data.Data[:, CHANNEL_INDEX[channel]] = self.Data.Data[:, CHANNEL_INDEX[channel]] - num
 
     def onSliderScroll(self, event):
         channel = self.datapanel.m_offsetChannelChoice.GetStringSelection()

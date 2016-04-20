@@ -1,0 +1,8 @@
+{
+    "wafer_diffused": true,
+    "wafer_id": "wafer1",
+    "wafer_na": 1.0,
+    "wafer_nd": 6.0,
+    "wafer_num_sides": "1 side",
+    "wafer_thickness": 33.0
+}

@@ -3,7 +3,7 @@
 
 """
 This is a GUI for the QSSPL system. It interfaces with USB6356 NI DAQ card.
-Currently it is assumed that the NI card is Dev3, and it reads three channels
+Currently it is assumed that the NI card is Dev2, and it reads three channels
 and outputs on 1. This could all be changed, but i'm not sure why I want to
 yet.
 
