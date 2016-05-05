@@ -186,6 +186,7 @@ class Controller(object):
                     self.view1.get_temperature_form()
                 )
                 config_dict["wafer_settings"] = self.view1.get_wafer_form()
+                # gets the measurement settings
                 config_dict["experiment_settings"] = (
                     self.view1.get_experiment_form()
                 )
@@ -194,11 +195,15 @@ class Controller(object):
                 except KeyError as e:
                     self.view1.show_error_modal(str(e))
 
+                # create the wave forms for each run
                 for setting in settings["experiment_settings"]:
                     self.measurement_handler.add_to_queue(
-                        LightPulse(setting).create_waveform(),
                         setting
                     )
+
+                print 'multi measure settings', config_dict["experiment_settings"]
+                print setting.ref_gain
+                print setting.pl_gain
                 self.wafer_settings = settings["wafer_settings"]
                 self.temperature_settings = settings["temp_settings"]
 
@@ -219,6 +224,8 @@ class Controller(object):
             total_measurements = 0
             self.PlotModal = PlotModal(self.app)
             self.PlotModal.Show()
+
+            # while there things to measure
             while not self.measurement_handler.is_queue_empty():
 
                 single_dataset = self.measurement_handler.single_measurement()
@@ -295,7 +302,9 @@ class Controller(object):
                         sample_rate=item['sample_rate'],
                         channel=item['channel'],
                         binning=item['binning'],
-                        averaging=item['averaging']
+                        averaging=item['averaging'],
+                        ref_gain=item['ref_gain'],
+                        pl_gain=item['pl_gain'],
                     )
                 )
             except KeyError as e:

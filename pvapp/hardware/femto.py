@@ -3,9 +3,13 @@
 import ctypes
 import collections
 
-femto = ctypes.cdll.LoadLibrary(
-    r'C:\Program Files (x86)\FEMTO\LUCI-10\Driver\LUCI_10.dll')
 
+try:
+    dll_path = r'C:\Program Files (x86)\FEMTO\LUCI-10\Driver\LUCI_10.dll'
+    femto = ctypes.cdll.LoadLibrary(
+        dll_path)
+except:
+    print 'can not find requird dll at {0}'.format(dll_path)
 # prints the number of attached devices
 # returns -1 on error
 
@@ -172,7 +176,7 @@ class DLPCA_200():
         '''
         Controls if the voltage amplifaction is turned on or off
         voltage_amp: {'True', 'False'}
-                If  *True* the voltage amplification is turned on. 
+                If  *True* the voltage amplification is turned on.
                 If *False* the voltage amplifer is turned off
         '''
         try:
@@ -287,12 +291,3 @@ class DLPCA_200():
         # print '\t high', data_high, data_high.value
         print femto.WriteData(self.index, data_low, data_high)
         # print 'written'
-
-
-print 'Testing:'
-dev1 = DLPCA_200(1)
-dev1.light_up()
-
-dev1.config_femto(gain=9, voltage_amp=True, acdc='dc')
-
-dev1.light_down()

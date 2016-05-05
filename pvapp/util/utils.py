@@ -23,12 +23,12 @@ def bin_data(data, bin_size):
 
     if bin_size == 1:
         return data
-    # This is part of a generic binning class that I wrote.
+
     # It lets binning occur of the first axis for any 2D or 1D array
     if len(data.shape) == 1:
         data2 = np.zeros((data.shape[0] // bin_size))
     else:
-        print('bin size: ', bin_size, '\nshape:', data.shape)
+        # print('bin size: ', bin_size, '\nshape:', data.shape)
         data2 = np.zeros((data.shape[0] // bin_size, data.shape[1]))
 
     for i in range(data.shape[0] // bin_size):

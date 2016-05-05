@@ -1,14 +1,15 @@
 import wx
-
-
 from gui.new_gui import IncrementalApp
 from gui.Validator import NumRangeValidator
 
 from util.Constants import WAVEFORMS, OUTPUTS
 from util.Exceptions import PVInputError
 
+def integer(string):
+    return int(float(string))
+
 known_types = {
-    'int': int,
+    'int': integer,
     'float': float,
     'str': str,
     'bool': bool
@@ -110,8 +111,8 @@ class View1(IncrementalApp):
                         ),
                         FormElement(None, "binning", "int"),
                         FormElement(None, "averaging", "int"),
-                        FormElement(None, "Ref_Gain", "int"),
-                        FormElement(None, "PL Gain", "int")
+                        FormElement(None, "ref_gain", "int"),
+                        FormElement(None, "pl_gain", "int")
                     ]
                 )
             )
@@ -150,7 +151,9 @@ class View1(IncrementalApp):
         )
 
         # setup flexible grid sizer for form construction
-        self.fgSizerAuto = wx.FlexGridSizer(self.NUM_ROWS + 1, len(self.column_titles_strs), 0, 0)
+        self.fgSizerAuto = wx.FlexGridSizer(self.NUM_ROWS + 1,
+                                       len(self.column_titles_strs), 0, 0)
+
         self.fgSizerAuto.SetFlexibleDirection(wx.BOTH)
         self.fgSizerAuto.SetNonFlexibleGrowMode(wx.FLEX_GROWMODE_SPECIFIED)
 
@@ -161,7 +164,6 @@ class View1(IncrementalApp):
             self.input_rows.append(self._add_row(num + 1))
 
             for index, widget in enumerate(self.input_rows[num][1:]):
-                print widget
                 self._experiment_form[num].widget_list[index].widget = widget
 
         self.m_autoPanel.SetSizer(self.fgSizerAuto)
@@ -219,6 +221,8 @@ class View1(IncrementalApp):
                 "channel": "Low (50mA/V)",
                 "binning": 1,
                 "averaging": 1,
+                'ref_gain' : 1e4,
+                'pl_gain': 1e9
             },
             {
                 "waveform": "Square",
@@ -230,6 +234,8 @@ class View1(IncrementalApp):
                 "channel": "High (2A/V)",
                 "binning": 1,
                 "averaging": 5,
+                'ref_gain' : 1e4,
+                'pl_gain': 1e9
             }
         ])
 
@@ -307,6 +313,7 @@ class View1(IncrementalApp):
                 self._experiment_form[row_num],
                 experiment_settings[row_num]
             )
+            print 'set_experiment_form', experiment_settings[row_num]
 
     def set_display_PL(self):
         self.m_displayPL.Disable()
@@ -423,7 +430,7 @@ class View1(IncrementalApp):
         for i in range(5):
             row_elements.append(self._add_textctrl())
         row_elements.append(self._add_dropdown(OUTPUTS))
-        for i in range(2):
+        for i in range(4):
             row_elements.append(self._add_textctrl())
         return row_elements
 
