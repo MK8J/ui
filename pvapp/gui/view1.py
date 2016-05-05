@@ -65,7 +65,7 @@ class View1(IncrementalApp):
 
         # experiment settings layout
         self.input_rows = []
-        column_titles_str = [
+        self.column_titles_strs = [
             u"", u"Waveform",
             u"Duration\n(s)",
             u"Amplitude\n(V)",
@@ -74,13 +74,18 @@ class View1(IncrementalApp):
             u"Sample\nRate (S)",
             u"LED state",
             u"Binning",
-            u"Average"
+            u"Average",
+            u"Ref Gain",
+            u"PL Gain",
         ]
 
+        # this is the gui's holder
         self._experiment_form = []
 
+        # the defult number of rows
         self.NUM_ROWS = 4
 
+        # building the gui
         for row_index in xrange(self.NUM_ROWS):
             self._experiment_form.append(
                 Form(
@@ -94,8 +99,8 @@ class View1(IncrementalApp):
                         ),
                         FormElement(None, "duration", "float"),
                         FormElement(None, "amplitude", "float"),
-                        FormElement(None, "offset_before", "int"),
-                        FormElement(None, "offset_after", "int"),
+                        FormElement(None, "offset_before", "float"),
+                        FormElement(None, "offset_after", "float"),
                         FormElement(None, "sample_rate", "float"),
                         FormElement(
                             None,
@@ -104,7 +109,9 @@ class View1(IncrementalApp):
                             choices=OUTPUTS
                         ),
                         FormElement(None, "binning", "int"),
-                        FormElement(None, "averaging", "int")
+                        FormElement(None, "averaging", "int"),
+                        FormElement(None, "Ref_Gain", "int"),
+                        FormElement(None, "PL Gain", "int")
                     ]
                 )
             )
@@ -129,10 +136,10 @@ class View1(IncrementalApp):
         self._temperature_form = Form(
             name="Temperature",
             widget_list=[
-                FormElement(self.m_startTemp, "start_temp", "int"),
-                FormElement(self.m_endTemp, "end_temp", "int"),
-                FormElement(self.m_stepTemp, "step_temp", "int"),
-                FormElement(self.m_stepWait, "step_wait", "int"),
+                FormElement(self.m_startTemp, "start_temp", "float"),
+                FormElement(self.m_endTemp, "end_temp", "float"),
+                FormElement(self.m_stepTemp, "step_temp", "float"),
+                FormElement(self.m_stepWait, "step_wait", "float"),
                 FormElement(
                     self.m_temperatureScale,
                     "temperature_scale",
@@ -143,17 +150,18 @@ class View1(IncrementalApp):
         )
 
         # setup flexible grid sizer for form construction
-        self.fgSizerAuto = wx.FlexGridSizer(self.NUM_ROWS + 1, 10, 0, 0)
+        self.fgSizerAuto = wx.FlexGridSizer(self.NUM_ROWS + 1, len(self.column_titles_strs), 0, 0)
         self.fgSizerAuto.SetFlexibleDirection(wx.BOTH)
         self.fgSizerAuto.SetNonFlexibleGrowMode(wx.FLEX_GROWMODE_SPECIFIED)
 
-        for title in column_titles_str:
+        for title in self.column_titles_strs:
             self._add_title_row(title)
 
         for num in range(self.NUM_ROWS):
             self.input_rows.append(self._add_row(num + 1))
 
             for index, widget in enumerate(self.input_rows[num][1:]):
+                print widget
                 self._experiment_form[num].widget_list[index].widget = widget
 
         self.m_autoPanel.SetSizer(self.fgSizerAuto)

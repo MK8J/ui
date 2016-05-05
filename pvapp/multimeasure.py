@@ -46,6 +46,7 @@ class Controller(object):
         self.measurement_handler = MeasurementHandler()
 
         # settings
+        self.preamp_settings = None
         self.temperature_settings = None
         self.wafer_settings = None
         # data sets
