@@ -51,7 +51,6 @@ class LightPulse(object):
         Factory method to produce numpy array with light intensity values
         """
         # pad waveform with zeroes
-
         v_before = np.zeros(
             int(self.output_samples * self.Offset_Before / 1000)
         )
@@ -66,9 +65,11 @@ class LightPulse(object):
             voltage_waveform -= self.Voltage_Threshold
 
         else:
+            # create the times
             self.time_array = np.linspace(
                 0, self.Duration, num=(self.output_samples * self.Duration)
             )
+            # print '\t\t',self.output_samples, self.Duration, '\n\n\n'
 
             # TODO: this is bad, refactor
             voltage_waveform = getattr(self, self.Waveform)(
@@ -110,6 +111,9 @@ class LightPulse(object):
         """
         Returns t sized array with values of sine wave over half the period
         """
+        print '\t\tIM HERE'
+        print time_array[-1]
+        print  np.vstack((np.abs(np.sin(np.pi * time_array / time_array[-1])),time_array / time_array[-1])).T
         return -(amplitude) * np.abs(np.sin(np.pi * time_array / time_array[-1]))
 
     def Square(self, time_array, amplitude):

@@ -201,9 +201,6 @@ class Controller(object):
                         setting
                     )
 
-                print 'multi measure settings', config_dict["experiment_settings"]
-                print setting.ref_gain
-                print setting.pl_gain
                 self.wafer_settings = settings["wafer_settings"]
                 self.temperature_settings = settings["temp_settings"]
 
@@ -240,7 +237,7 @@ class Controller(object):
                 save_data(single_dataset, dataset_name, self.data_dir)
 
                 # print single_dataset.shape
-                self.PlotModal.plot_data([x for x in single_dataset[:,1:].T])
+                self.PlotModal.plot_data(single_dataset[:,0], [x for x in single_dataset[:,1:].T])
 
         except PVInputError as e:
             self.view1.show_error_modal(str(e))

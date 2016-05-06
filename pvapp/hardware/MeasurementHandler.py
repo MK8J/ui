@@ -9,7 +9,7 @@ from hardware.daq import WaveformThread
 from hardware.femto import DLPCA_200
 from models.LightPulse import LightPulse
 from util.utils import bin_data
-
+import matplotlib.pylab as plt
 
 
 class MeasurementHandler():
@@ -76,7 +76,9 @@ class MeasurementHandler():
 
         # gets the voltage pulse to control the waveform
         waveform_array = LightPulse(measurement_settings).create_waveform()
-        print waveform_array
+        # plt.figure()
+        # plt.plot(waveform_array)
+        # plt.show()
 
         # initalises the DAQ ready for a measurement
         thread = self.daq._int_thread(waveform_array, measurement_settings)
@@ -156,12 +158,12 @@ class FemtoMeasurementHandler():
         progress.
         '''
         self.preamps['ref'].config_femto(
-            gain=1e3,
+            gain=3,
             voltage_amp=False,
             acdc='dc'
         )
         self.preamps['pl'].config_femto(
-            gain=1e3,
+            gain=3,
             voltage_amp=False,
             acdc='dc'
         )
@@ -197,7 +199,7 @@ class DAQMeasurementHandler(object):
             input_voltage_range=experiment_settings.input_voltage_range,
             output_voltage_range=experiment_settings.output_voltage_range,
             input_sample_rate=experiment_settings.sample_rate,
-            output_sample_rate=experiment_settings.output_sample_rate
+            output_sample_rate=experiment_settings.sample_rate
         )
 
         return daq_io_thread

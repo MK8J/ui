@@ -43,13 +43,13 @@ class PlotModal(wx.Frame):
     def clear_figure(self):
         self.Fig1.clear()
 
-    def plot_data(self, data):
+    def plot_data(self, x, data):
         self.colours = ["r", "g", "b"]
         # This plots the figure
         for index, column in enumerate(data):
 
             self.Fig1.draw_points(
-                range(len(column)),
+                x,
                 column,
                 '.',
                 Color=self.colours[index]
