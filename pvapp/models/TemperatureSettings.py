@@ -1,56 +1,63 @@
 from util.Exceptions import PVInputError
+import numpy as np
 
 
 class TemperatureSettings(object):
     """
     Contains information for temperature change for a series of experiments
+    Takes input in any form and converts to Celcius for sending to the
+    Instec Temp controller
     """
 
-    def __init__(self, start_temp, end_temp, step_temp, step_wait,
-                 temperature_scale):
+
+    units_change = {
+    'Celsius': 0,
+    'Kelvin': -273
+    }
+    ramp = 100
+    pp = 1
+
+    def __init__(self, start_temp, step_wait, temperature_scale, end_temp=1, step_temp=1):
 
         super(TemperatureSettings, self).__init__()
 
         temp_diff = abs(start_temp - end_temp)
-        if step_temp > temp_diff:
+        if step_temp == 0:
             raise PVInputError(
-                "Step size is larger than the temperature difference."
+                "Step size can not be 0."
             )
 
-        if temp_diff != 0 and temp_diff % step_temp != 0:
-            raise PVInputError(
-                "Step size doesn't evenly divide temperature difference."
-            )
-
-        if start_temp == end_temp and step_temp != 0:
-            raise PVInputError(
-                "Can't take that many steps in that between start and end."
-            )
-
-        if start_temp == end_temp and step_temp != 0:
-            raise PVInputError(
-                "Can't take that many steps in that between start and end."
-            )
-
-        if temperature_scale == "Celcius":
-            self.start_temp = start_temp + 273.15
-            self.end_temp = end_temp + 273.15
-            self.step_temp = step_temp + 273.15
-        else:
-            self.start_temp = start_temp
-            self.end_temp = end_temp
-            self.step_temp = step_temp
-
+        # this are required for the gui of multimeasure
+        self.start_temp = start_temp
         self.step_wait = step_wait
+        self.end_temp = end_temp
+        self.step_temp = step_temp
 
-        self.temperature_scale = "Kelvin"
+        # this is a list of temps for the temp controller
+        temps = np.arange(start_temp, end_temp, step_temp)
+        self.temps = temps + self.units_change[temperature_scale]
+        self.temperature_scale = 'Celcius'
+
+        print step_wait
+        print np.asarray(temps).shape
+        print np.asarray(step_wait).shape, np.asarray(step_wait)
+        # this is making sure we get a list of waits
+        if np.asarray(temps).shape == np.asarray(step_wait).shape:
+            self.waits = np.asarray(step_wait)
+        # if its not, make it so
+        else:
+            self.waits = np.ones(np.asarray(temps).shape[0])*step_wait
+
+
 
     def as_dict(self):
         return {
-            "start_temp": self.start_temp,
-            "end_temp": self.end_temp,
-            "step_temp": self.step_temp,
-            "step_wait": self.step_wait,
+            "temps": self.temps,
+            "waits": self.waits,
+            "start_temp" : self.start_temp,
+            "step_wait" : self.step_wait,
+            "end_temp" : self.end_temp,
+            "step_temp" : self.step_temp,
             "temperature_scale": self.temperature_scale
         }
 

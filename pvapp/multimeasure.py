@@ -4,7 +4,7 @@ import time
 
 from gui.view1 import View1
 from gui.PlotModal import PlotModal
-from hardware.MeasurementHandler import MeasurementHandler
+from hardware.MeasurementHandler import MeasurementHandler, TempHandler
 
 from models.ExperimentSettings import ExperimentSettings
 from models.LightPulse import LightPulse
@@ -44,6 +44,7 @@ class Controller(object):
 
         # the hardware interface
         self.measurement_handler = MeasurementHandler()
+        self.temp_handler = TempHandler()
 
         # settings
         self.preamp_settings = None
@@ -204,6 +205,9 @@ class Controller(object):
                 self.wafer_settings = settings["wafer_settings"]
                 self.temperature_settings = settings["temp_settings"]
 
+            # add the temps to queue
+            self.temp_handler.add_to_queue(self.temperature_settings)
+
             if self.data_dir is not None:
                 save_metadata(
                     self.wafer_settings.as_dict(),
@@ -214,6 +218,10 @@ class Controller(object):
             if self.measurement_handler.is_queue_empty():
                 raise(PVInputError("No measurements loaded."))
 
+            if self.temp_handler.is_queue_empty():
+                raise(PVInputError("No temperatures loaded."))
+
+
             # Do the actual measurements
             # TODO: refactor in separate method
 
@@ -222,22 +230,25 @@ class Controller(object):
             self.PlotModal = PlotModal(self.app)
             self.PlotModal.Show()
 
-            # while there things to measure
-            while not self.measurement_handler.is_queue_empty():
+            # while there things to measure, measure them
+            while not self.temp_handler.is_queue_empty():
+                # set the current temp
+                self.temp_handler.run()
+                while not self.measurement_handler.is_queue_empty():
 
-                single_dataset = self.measurement_handler.single_measurement()
-                dataset_list.append(single_dataset)
-                total_measurements = total_measurements + 1
-                ts = int(time.time())
-                dataset_name = (
-                    str(total_measurements) +
-                    self.wafer_settings.id +
-                    str(ts)
-                )
-                save_data(single_dataset, dataset_name, self.data_dir)
+                    single_dataset = self.measurement_handler.single_measurement()
+                    dataset_list.append(single_dataset)
+                    total_measurements = total_measurements + 1
+                    ts = int(time.time())
+                    dataset_name = (
+                        str(total_measurements) +
+                        self.wafer_settings.id +
+                        str(ts)
+                    )
+                    save_data(single_dataset, dataset_name, self.data_dir)
 
-                # print single_dataset.shape
-                self.PlotModal.plot_data(single_dataset[:,0], [x for x in single_dataset[:,1:].T])
+                    # print single_dataset.shape
+                    self.PlotModal.plot_data(single_dataset[:,0], [x for x in single_dataset[:,1:].T])
 
         except PVInputError as e:
             self.view1.show_error_modal(str(e))

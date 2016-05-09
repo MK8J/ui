@@ -7,9 +7,12 @@ from ConfigParser import SafeConfigParser
 
 from hardware.daq import WaveformThread
 from hardware.femto import DLPCA_200
+from hardware.instec import mk2000
 from models.LightPulse import LightPulse
 from util.utils import bin_data
 import matplotlib.pylab as plt
+
+import time
 
 
 class MeasurementHandler():
@@ -23,10 +26,10 @@ class MeasurementHandler():
         # self.config = config()
 
         self._queue = deque()
-        self.preamps = FemtoMeasurementHandler(self.config._sections['reference_preamp'],
-                                            self.config._sections['sample_preamp'])
+        self.preamps = FemtoMeasurementHandler(
+            self.config._sections['reference_preamp'],
+            self.config._sections['sample_preamp'])
         self.daq = DAQMeasurementHandler()
-
 
     def is_queue_empty(self):
         return True if len(self._queue) == 0 else False
@@ -41,7 +44,6 @@ class MeasurementHandler():
         '''
         Add the metadata to the que
         '''
-        print 'the metal data is', metadata
         self._queue.append(metadata)
 
     def pc_calibration_measurement(self, calibration_settings):
@@ -67,9 +69,6 @@ class MeasurementHandler():
         '''
         # get measurement from list
         measurement_settings = self._queue.popleft()
-        print 'The measurement settings are', type(measurement_settings)
-        print measurement_settings.ref_gain
-        print measurement_settings.pl_gain
 
         # set preamp gains
         self.preamps.configure(measurement_settings)
@@ -122,7 +121,7 @@ class MeasurementHandler():
         measurement_data = measurement_data[:data_len*int(self.daq.NUM_CHANNELS)]
         measurement_data = measurement_data.reshape(
             (data_len, int(self.daq.NUM_CHANNELS)),
-            order = 'F')
+            order='F')
 
         assert measurement_data.shape[0] == thread_time.shape[0], 'data Length differ {0} {1}'.format( measurement_data.shape, thread_time.shape[0])
 
@@ -175,6 +174,83 @@ class FemtoMeasurementHandler():
         print 'The femto gain is', measurement_settings.ref_gain
         self.preamps['ref'].config_femto(gain=measurement_settings.ref_gain)
         self.preamps['pl'].config_femto(gain=measurement_settings.pl_gain)
+
+
+class TempHandler():
+    """
+    Controller to handle IO from NI datacard
+    """
+
+    # the name given to the hardward in ni visa
+    visa_name = 'mk1000'
+
+    temp = 25
+    ramp = 100
+    pp = 1
+
+    def __init__(self, visa_name = None):
+        # creates a que
+        self._queue = deque()
+
+        self.visa_name = visa_name or self.visa_name
+        self.temp_cont = mk2000(visa_name)
+    	pass
+
+
+    def is_queue_empty(self):
+        return True if len(self._queue) == 0 else False
+
+    def clear_queue(self):
+        '''
+        clears the queue
+        '''
+        self._queue = deque()
+
+    def add_to_queue(self, temp_settings):
+        '''
+        Add the metadata to the list
+        '''
+
+        # the temps and waits need to be passed
+        # assert isinstance(temp_settings.temps, list)
+        # assert isinstance(temp_settings.waits, list)
+        print temp_settings.temps, temp_settings.waits
+        for temp, wait in zip(temp_settings.temps, temp_settings.waits):
+            settings = {'set_temp': temp,
+                        'wait': wait,
+                        'ramp': temp_settings.ramp,
+                        'pp': temp_settings.pp,
+                        }
+            self._queue.append(settings)
+        pass
+
+    def _int(self, temp_settings):
+        """
+        Sets the vals in the temp contller
+        """
+        print temp_settings
+
+        self.temp_cont.set(
+            temp=temp_settings['set_temp'],
+            ramp=temp_settings['ramp'],
+            pp=temp_settings['pp'])
+
+    def run(self):
+
+        temp_settings = self._queue.popleft()
+
+        print 'The settings are: \n', temp_settings
+        self.temp_cont.run(option = 'stop')
+        self._int(temp_settings)
+        self.temp_cont.run(option = 'ramp')
+        time.sleep(temp_settings['wait'])
+
+        # ans = 0
+        # while ans == 0 :
+        #     ans = self.temp_cont.get_inf()
+        # temp_settings.update(ans)
+
+        return temp_settings
 
 
 class DAQMeasurementHandler(object):
