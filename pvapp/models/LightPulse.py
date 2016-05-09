@@ -24,7 +24,7 @@ class LightPulse(object):
         self.Voltage_Threshold = metadata.voltage_threshold
         self.time_array = np.array([])
 
-        self.complete_waveform = self.create_waveform()
+        self.complete_waveform = self.__create_waveform()
 
         self._set_derived_parameters()
 
@@ -45,8 +45,7 @@ class LightPulse(object):
         )
         self.frequence_val = 1. / self.total_time
 
-    # TODO: should be private method
-    def create_waveform(self):
+    def __create_waveform(self):
         """
         Factory method to produce numpy array with light intensity values
         """
@@ -75,27 +74,27 @@ class LightPulse(object):
             voltage_waveform = getattr(self, self.Waveform)(
                 self.time_array, self.A
             )
-            voltage_waveform = self.scale_to_threshold(voltage_waveform)
+            voltage_waveform = self.__scale_to_threshold(voltage_waveform)
 
-        self.Duration = self.time_array[-1]
-        # print (v_before, v_after)
-        complete_waveform = np.concatenate(
-            (v_before, voltage_waveform, v_after)
-        )
+            # print (v_before, v_after)
+            complete_waveform = np.concatenate(
+                (v_before, voltage_waveform, v_after)
+            )
 
-        total_time = sum([self.Offset_Before / 1000,
-                          self.Offset_After / 1000,
-                          self.Duration])
+            total_time = sum([self.Offset_Before / 1000,
+                              self.Offset_After / 1000,
+                              self.Duration])
         self.time_array = np.linspace(
             0, total_time, num=complete_waveform.shape[0]
         )
+        self.Duration = self.time_array[-1]
 
         complete_waveform[-1] = 1
 
         return complete_waveform
 
     # TODO: also should be Private method
-    def scale_to_threshold(self, voltage_waveform):
+    def __scale_to_threshold(self, voltage_waveform):
         """
         Scales an array of voltage values to below voltage_threshold
         """
@@ -111,9 +110,6 @@ class LightPulse(object):
         """
         Returns t sized array with values of sine wave over half the period
         """
-        print '\t\tIM HERE'
-        print time_array[-1]
-        print  np.vstack((np.abs(np.sin(np.pi * time_array / time_array[-1])),time_array / time_array[-1])).T
         return -(amplitude) * np.abs(np.sin(np.pi * time_array / time_array[-1]))
 
     def Square(self, time_array, amplitude):
@@ -148,7 +144,7 @@ class LightPulse(object):
         return np.zeros((time_array.shape[0]))
 
     # TODO: rename to more  descriptive
-    def MattiasCustom(self, time_array, amplitude):
+    def MJ(self, time_array, amplitude):
         """
         Return t sized array evenly space points on 1/x on log scale
         """
@@ -184,14 +180,14 @@ class LightPulse(object):
 
         for f in np.logspace(self.Offset_Before, self.Offset_After, int(number))[::-1]:
 
-            t = np.arange(0, 10 / f, 1. / self.output_samples)
+            t = np.arange(0, 10 / f, 1. / self.output_samples)[1:]
 
             V = np.append(
                 V, Amplitudefreaction * self.A * np.sin(2 * np.pi * f * t)
             )
 
             T = np.append(T, t + t0)
-            t0 += t[-1]
+            t0 += T[-1]
 
         return -V - self.A, T
 

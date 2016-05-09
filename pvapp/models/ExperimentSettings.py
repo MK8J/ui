@@ -12,11 +12,12 @@ from util.Constants import (
 
 class ExperimentSettings(object):
     """docstring for ExperimentSettings"""
+    gain_values = range(3,10)
 
     def __init__(self, waveform='Sin', duration=0.1, amplitude=0.5,
                  offset_before=1, offset_after=10, sample_rate=1.2e5,
-                 channel=1, binning=1, averaging=1, ref_gain=1e4,
-                 pl_gain=1e7):
+                 channel=1, binning=1, averaging=1, ref_gain=3,
+                 pl_gain=7):
 
         self.waveform = waveform
 
@@ -34,6 +35,10 @@ class ExperimentSettings(object):
 
         self.ref_gain = ref_gain
         self.pl_gain = pl_gain
+
+        if ref_gain not in self.gain_values or pl_gain not in self.gain_values:
+
+            raise(PVInputError("Impossible gain value provided."))
 
         # what follows are hardward settings
         self.threshold = 150.0

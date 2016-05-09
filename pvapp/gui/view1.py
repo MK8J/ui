@@ -76,8 +76,8 @@ class View1(IncrementalApp):
             u"LED state",
             u"Binning",
             u"Average",
-            u"Ref Gain",
-            u"PL Gain",
+            u"Ref Gain\n10$^x$ V/A",
+            u"PL Gain\n10$^x$ V/A",
         ]
 
         # this is the gui's holder
@@ -221,8 +221,8 @@ class View1(IncrementalApp):
                 "channel": "Low (50mA/V)",
                 "binning": 1,
                 "averaging": 1,
-                'ref_gain' : 1e4,
-                'pl_gain': 1e9
+                'ref_gain' : 4,
+                'pl_gain': 9
             },
             {
                 "waveform": "Square",
@@ -234,8 +234,8 @@ class View1(IncrementalApp):
                 "channel": "High (2A/V)",
                 "binning": 1,
                 "averaging": 5,
-                'ref_gain' : 1e4,
-                'pl_gain': 1e9
+                'ref_gain' : 4,
+                'pl_gain': 9
             }
         ])
 
