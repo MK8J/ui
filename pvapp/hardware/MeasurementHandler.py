@@ -176,7 +176,9 @@ class FemtoMeasurementHandler():
         self.preamps['pl'].config_femto(gain=measurement_settings.pl_gain)
 
 
-class InstecMeasurementHandler():
+
+class temp_handler():
+
 
     # the name given to the hardward in ni visa
     visa_name = 'mk1000'

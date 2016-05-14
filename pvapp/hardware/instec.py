@@ -15,6 +15,7 @@ import struct
 import visa
 import pyvisa
 
+
 class mk2000():
     '''
     A class that talks to the mk2000
@@ -90,7 +91,11 @@ class mk2000():
 
     def set(self, temp=None, ramp=None, pp=None):
         '''
+<<<<<<< HEAD
         sets values things!
+=======
+        things!
+>>>>>>> e54aba85b2f16f0d109bf24afaae1896925d481f
         '''
         if temp is not None:
             self._set_val('TT', temp)
